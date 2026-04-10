@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  
+  --color-aqua: #00ffd5;
+  --color-aqua-dark: #008f7a;
+  --color-aqua-glow: rgba(0, 255, 213, 0.4);
+}
+
+@layer base {
+  body {
+    @apply bg-black text-white antialiased selection:bg-aqua selection:text-black;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+  
+  .glass-aqua {
+    @apply bg-aqua/5 backdrop-blur-xl border border-aqua/20;
+  }
+
+  .shadow-3d {
+    box-shadow: 
+      0 10px 30px -10px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(0, 255, 213, 0.1);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 15px rgba(0, 255, 213, 0.5);
+  }
+}
