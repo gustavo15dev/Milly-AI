@@ -47,6 +47,9 @@ export default function App() {
       error?: boolean | string;
     };
     sources?: { title: string; url: string; content: string }[];
+    searchImages?: string[];
+    followUpQuestions?: string[];
+    searchAnswer?: string;
   }[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [chatMode, setChatMode] = useState<'Rápido' | 'Raciocínio' | 'Pro'>('Rápido');
@@ -55,6 +58,7 @@ export default function App() {
   const [isImageToolActive, setIsImageToolActive] = useState(false);
   const [isWebSearchActive, setIsWebSearchActive] = useState(false);
   const [selectedSources, setSelectedSources] = useState<{ title: string; url: string; content: string }[] | null>(null);
+  const [selectedImageGallery, setSelectedImageGallery] = useState<{images: string[], currentIndex: number} | null>(null);
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -275,7 +279,10 @@ export default function App() {
         role: 'ai' as const, 
         content,
         artifact: artifactPrompt ? { prompt: artifactPrompt, isLoading: true } : undefined,
-        sources: data.sources
+        sources: data.sources,
+        searchImages: data.images,
+        followUpQuestions: data.followUpQuestions,
+        searchAnswer: data.searchAnswer
       };
 
       setMessages(prev => [...prev, newMessage]);
@@ -351,10 +358,10 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-full bg-black text-white font-sans overflow-hidden relative">
+    <div className="h-screen w-full bg-white text-slate-900 font-sans overflow-hidden relative">
       {/* Background Ambient Glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-aqua/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-aqua/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-100 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-green-100 rounded-full blur-[120px] pointer-events-none" />
       
       <AnimatePresence mode="wait">
         {view === 'landing' ? (
@@ -367,24 +374,24 @@ export default function App() {
           >
             {/* Navigation */}
             <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
-              <div className="max-w-7xl mx-auto flex items-center justify-between glass rounded-2xl px-6 py-3 shadow-3d">
+              <div className="max-w-7xl mx-auto flex items-center justify-between bg-white/80 backdrop-blur-xl border border-slate-200 rounded-2xl px-6 py-3 shadow-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-aqua rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(0,255,213,0.5)]">
-                    <Cpu className="w-5 h-5 text-black" />
+                  <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center shadow-sm">
+                    <Cpu className="w-5 h-5 text-white" />
                   </div>
-                  <span className="font-display font-bold text-xl tracking-tight">Milly <span className="text-aqua">AI 1</span></span>
+                  <span className="font-display font-bold text-xl tracking-tight text-slate-900">Milly <span className="text-blue-600">AI 1</span></span>
                 </div>
                 
                 <div className="hidden md:flex items-center gap-4">
                   <button 
                     onClick={() => { setView('chat'); setMessages([]); }}
-                    className="bg-aqua text-black px-6 py-2 rounded-xl font-bold hover:bg-white transition-all shadow-3d active:scale-95"
+                    className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-sm active:scale-95"
                   >
                     Começar
                   </button>
                 </div>
 
-                <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                <button className="md:hidden text-slate-900" onClick={() => setIsMenuOpen(!isMenuOpen)}>
                   {isMenuOpen ? <X /> : <Menu />}
                 </button>
               </div>
@@ -397,12 +404,12 @@ export default function App() {
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="fixed inset-0 z-40 bg-black/95 backdrop-blur-xl pt-24 px-6 md:hidden"
+                  className="fixed inset-0 z-40 bg-white/95 backdrop-blur-xl pt-24 px-6 md:hidden"
                 >
                   <div className="flex flex-col gap-6 text-2xl font-display font-bold">
                     <button 
                       onClick={() => { setView('chat'); setMessages([]); setIsMenuOpen(false); }}
-                      className="bg-aqua text-black w-full py-4 rounded-2xl mt-4"
+                      className="bg-slate-900 text-white w-full py-4 rounded-2xl mt-4"
                     >
                       Começar
                     </button>
@@ -419,32 +426,32 @@ export default function App() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.8, ease: "easeOut" }}
                 >
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-aqua/10 border border-aqua/20 text-aqua text-xs font-bold uppercase tracking-widest mb-6">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-xs font-bold uppercase tracking-widest mb-6">
                     <Sparkles className="w-3 h-3" />
                     A Próxima Geração de IA
                   </div>
                   
-                  <h1 className="text-5xl md:text-7xl font-display font-bold leading-[1.1] mb-6">
+                  <h1 className="text-5xl md:text-7xl font-display font-bold leading-[1.1] mb-6 text-slate-900">
                     Inteligência que <br />
-                    <span className="text-aqua text-glow">Sente e Evolui.</span>
+                    <span className="text-blue-600">Sente e Evolui.</span>
                   </h1>
                   
-                  <p className="text-white/60 text-lg md:text-xl max-w-xl mb-10 leading-relaxed">
+                  <p className="text-slate-600 text-lg md:text-xl max-w-xl mb-10 leading-relaxed">
                     Milly AI 1 redefine a interação humano-máquina com um design imersivo e processamento neural de ultra-velocidade.
                   </p>
 
                   <div className="flex flex-col sm:flex-row gap-4">
                     <button 
                       onClick={() => { setView('chat'); setMessages([]); }}
-                      className="group relative bg-aqua text-black px-10 py-4 rounded-2xl font-bold text-lg shadow-3d overflow-hidden transition-all hover:scale-105 active:scale-95"
+                      className="group relative bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-sm overflow-hidden transition-all hover:scale-105 active:scale-95"
                     >
                       <span className="relative z-10 flex items-center gap-2">
                         Começar <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                       </span>
-                      <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+                      <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
                     </button>
                     
-                    <button className="glass px-10 py-4 rounded-2xl font-bold text-lg text-white/40 cursor-not-allowed flex items-center gap-2">
+                    <button className="bg-slate-50 border border-slate-200 px-10 py-4 rounded-2xl font-bold text-lg text-slate-400 cursor-not-allowed flex items-center gap-2">
                       <BarChart3 className="w-5 h-5" />
                       Benchmarks
                     </button>
@@ -452,16 +459,16 @@ export default function App() {
 
                   <div className="mt-16 grid grid-cols-3 gap-8">
                     <div>
-                      <div className="text-3xl font-display font-bold text-aqua">99.9%</div>
-                      <div className="text-white/40 text-xs uppercase tracking-wider mt-1">Precisão</div>
+                      <div className="text-3xl font-display font-bold text-blue-600">99.9%</div>
+                      <div className="text-slate-400 text-xs uppercase tracking-wider mt-1">Precisão</div>
                     </div>
                     <div>
-                      <div className="text-3xl font-display font-bold text-aqua">1.2ms</div>
-                      <div className="text-white/40 text-xs uppercase tracking-wider mt-1">Latência</div>
+                      <div className="text-3xl font-display font-bold text-blue-600">1.2ms</div>
+                      <div className="text-slate-400 text-xs uppercase tracking-wider mt-1">Latência</div>
                     </div>
                     <div>
-                      <div className="text-3xl font-display font-bold text-aqua">24/7</div>
-                      <div className="text-white/40 text-xs uppercase tracking-wider mt-1">Atividade</div>
+                      <div className="text-3xl font-display font-bold text-blue-600">24/7</div>
+                      <div className="text-slate-400 text-xs uppercase tracking-wider mt-1">Atividade</div>
                     </div>
                   </div>
                 </motion.div>
@@ -477,12 +484,12 @@ export default function App() {
                     <motion.div 
                       animate={{ rotate: 360 }}
                       transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                      className="absolute inset-0 border-2 border-aqua/10 rounded-full"
+                      className="absolute inset-0 border-2 border-slate-200 rounded-full"
                     />
                     <motion.div 
                       animate={{ rotate: -360 }}
                       transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                      className="absolute inset-[10%] border border-aqua/20 rounded-full border-dashed"
+                      className="absolute inset-[10%] border border-slate-300 rounded-full border-dashed"
                     />
                     
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -490,21 +497,21 @@ export default function App() {
                         animate={{ 
                           scale: [1, 1.05, 1],
                           boxShadow: [
-                            "0 0 20px rgba(0, 255, 213, 0.2)",
-                            "0 0 60px rgba(0, 255, 213, 0.4)",
-                            "0 0 20px rgba(0, 255, 213, 0.2)"
+                            "0 0 20px rgba(59, 130, 246, 0.2)",
+                            "0 0 60px rgba(59, 130, 246, 0.4)",
+                            "0 0 20px rgba(59, 130, 246, 0.2)"
                           ]
                         }}
                         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                        className="w-[60%] h-[60%] bg-gradient-to-br from-aqua to-aqua-dark rounded-[40px] flex items-center justify-center relative overflow-hidden group shadow-3d"
+                        className="w-[60%] h-[60%] bg-gradient-to-br from-blue-500 to-blue-700 rounded-[40px] flex items-center justify-center relative overflow-hidden group shadow-lg"
                       >
-                        <div className="absolute inset-2 bg-black/20 backdrop-blur-sm rounded-[32px] border border-white/20 flex items-center justify-center">
-                          <Cpu className="w-24 h-24 text-white/90 drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
+                        <div className="absolute inset-2 bg-white/20 backdrop-blur-sm rounded-[32px] border border-white/40 flex items-center justify-center">
+                          <Cpu className="w-24 h-24 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
                         </div>
                         <motion.div 
                           animate={{ top: ["-10%", "110%"] }}
                           transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                          className="absolute left-0 right-0 h-[2px] bg-white/50 blur-[2px] z-20"
+                          className="absolute left-0 right-0 h-[2px] bg-white/80 blur-[2px] z-20"
                         />
                       </motion.div>
                     </div>
@@ -512,15 +519,15 @@ export default function App() {
                     <motion.div 
                       animate={{ y: [0, -10, 0] }}
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                      className="absolute top-[10%] right-[5%] glass-aqua p-4 rounded-2xl shadow-3d z-30"
+                      className="absolute top-[10%] right-[5%] bg-white/80 backdrop-blur-md border border-slate-200 p-4 rounded-2xl shadow-lg z-30"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-aqua/20 flex items-center justify-center">
-                          <Activity className="w-5 h-5 text-aqua" />
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                          <Activity className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
-                          <div className="text-xs text-white/50 font-bold uppercase tracking-tighter">Status</div>
-                          <div className="text-sm font-bold">Otimizado</div>
+                          <div className="text-xs text-slate-500 font-bold uppercase tracking-tighter">Status</div>
+                          <div className="text-sm font-bold text-slate-900">Otimizado</div>
                         </div>
                       </div>
                     </motion.div>
@@ -535,26 +542,26 @@ export default function App() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="h-[100dvh] flex flex-col"
+            className="h-[100dvh] flex flex-col bg-white"
           >
             {/* Chat Header */}
-            <header className="glass-aqua border-b border-aqua/10 px-6 py-4 flex items-center justify-between z-50">
+            <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-50 sticky top-0">
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => setView('landing')}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                  className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-600"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-aqua rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,255,213,0.3)]">
-                    <Bot className="w-6 h-6 text-black" />
+                  <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shadow-sm">
+                    <Bot className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="font-display font-bold text-lg leading-none">Milly AI 1</h2>
+                    <h2 className="font-display font-bold text-lg leading-none text-slate-900">Milly AI 1</h2>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <div className="w-1.5 h-1.5 bg-aqua rounded-full animate-pulse" />
-                      <span className="text-[10px] text-aqua font-bold uppercase tracking-widest">Online</span>
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Online</span>
                     </div>
                   </div>
                 </div>
@@ -565,13 +572,13 @@ export default function App() {
                     setMessages([]);
                     setIsImageToolActive(false);
                   }}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-xl transition-colors text-white/80 text-sm font-medium mr-2"
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 rounded-xl transition-colors text-slate-700 text-sm font-medium mr-2"
                 >
                   <Plus className="w-4 h-4" />
                   Nova conversa
                 </button>
-                <button className="p-2 hover:bg-white/10 rounded-xl transition-colors">
-                  <Shield className="w-5 h-5 text-white/60" />
+                <button className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                  <Shield className="w-5 h-5 text-slate-400" />
                 </button>
               </div>
             </header>
@@ -579,7 +586,7 @@ export default function App() {
             {/* Chat Messages Area */}
             <div 
               ref={scrollAreaRef}
-              className="flex-1 overflow-y-auto p-6 space-y-6 relative"
+              className="flex-1 overflow-y-auto p-6 space-y-6 relative bg-white"
             >
               <div className="max-w-5xl mx-auto">
                 {messages.length === 0 ? (
@@ -587,7 +594,7 @@ export default function App() {
                     <motion.h2 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="text-4xl md:text-5xl font-display font-bold text-white/20 text-center"
+                      className="text-4xl md:text-5xl font-display font-bold text-slate-200 text-center"
                     >
                       Como posso ajudar?
                     </motion.h2>
@@ -601,63 +608,123 @@ export default function App() {
                         animate={{ opacity: 1, x: 0 }}
                         className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                       >
-                        <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border ${msg.role === 'ai' ? 'bg-aqua/20 border-aqua/20' : 'bg-white/10 border-white/10'}`}>
-                          {msg.role === 'ai' ? <Bot className="w-5 h-5 text-aqua" /> : <User className="w-5 h-5 text-white/60" />}
+                        <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center ${msg.role === 'ai' ? 'bg-white shadow-sm' : 'bg-slate-200 border border-slate-300'}`}>
+                          {msg.role === 'ai' ? <Bot className="w-5 h-5 text-slate-700" /> : <User className="w-5 h-5 text-slate-500" />}
                         </div>
-                        <div className={`${msg.role === 'ai' ? 'glass-aqua rounded-tl-none' : 'glass rounded-tr-none'} p-4 rounded-2xl max-w-[95%] shadow-3d w-full`}>
+                        <div className={`${msg.role === 'ai' ? 'bg-white rounded-tl-none' : 'bg-slate-100 rounded-tr-none shadow-sm'} p-4 rounded-2xl max-w-[95%] w-full`}>
                           {msg.images && (
                             <div className="flex flex-wrap gap-2 mb-3">
                               {msg.images.map((img, i) => (
-                                <img key={i} src={img} alt="Anexo" className="w-20 h-20 object-cover rounded-lg border border-white/10" referrerPolicy="no-referrer" />
+                                <img key={i} src={img} alt="Anexo" className="w-20 h-20 object-cover rounded-lg border border-slate-200" referrerPolicy="no-referrer" />
                               ))}
                             </div>
                           )}
                           {msg.generatedImage && (
-                            <div className="mb-3 rounded-xl overflow-hidden border border-white/10 shadow-2xl max-w-sm mx-auto">
+                            <div className="mb-3 rounded-xl overflow-hidden border border-slate-200 shadow-lg max-w-sm mx-auto">
                               <img src={msg.generatedImage} alt="Gerada pela IA" className="w-full h-auto" referrerPolicy="no-referrer" />
                             </div>
                           )}
                           {msg.role === 'ai' ? (
-                            <div className="markdown-body text-sm leading-relaxed">
+                            <div className="markdown-body text-sm leading-relaxed text-slate-800">
+                              {msg.searchImages && msg.searchImages.length > 0 && (
+                                <div className="flex gap-3 overflow-x-auto pb-4 mb-4 scrollbar-hide snap-x">
+                                  {msg.searchImages.map((imgUrl, i) => {
+                                    const urlStr = typeof imgUrl === 'string' ? imgUrl : (imgUrl as any).url;
+                                    return (
+                                      <button 
+                                        key={i} 
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setSelectedImageGallery({
+                                            images: msg.searchImages!.map(img => typeof img === 'string' ? img : (img as any).url),
+                                            currentIndex: i
+                                          });
+                                        }}
+                                        className="flex-shrink-0 snap-start cursor-pointer focus:outline-none"
+                                      >
+                                        <img 
+                                          src={`https://wsrv.nl/?url=${encodeURIComponent(urlStr)}`} 
+                                          alt={`Search result ${i + 1}`} 
+                                          className="h-32 w-auto min-w-[120px] object-cover rounded-xl border border-slate-200 hover:shadow-md transition-all hover:scale-[1.02]" 
+                                          referrerPolicy="no-referrer"
+                                          onError={(e) => {
+                                            (e.currentTarget.parentNode as HTMLElement).style.display = 'none';
+                                          }}
+                                        />
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
                               <ReactMarkdown 
                                 remarkPlugins={[remarkGfm]} 
                                 rehypePlugins={[rehypeRaw]}
                                 components={{
-                                  h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-5 mb-3 text-white" {...props} />,
-                                  h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3 text-white" {...props} />,
-                                  h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2 text-white" {...props} />,
+                                  h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
+                                  h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
+                                  h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900" {...props} />,
                                   p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
                                   ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-4" {...props} />,
                                   ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-4" {...props} />,
                                   li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                                  a: ({node, ...props}) => <a className="text-aqua hover:underline" {...props} />,
-                                  strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
+                                  a: ({node, ...props}) => <a className="text-blue-600 hover:underline" {...props} />,
+                                  strong: ({node, ...props}) => <strong className="font-bold text-slate-900" {...props} />,
                                   em: ({node, ...props}) => <em className="italic" {...props} />,
-                                  mark: ({node, ...props}) => <mark className="bg-blue-500/30 text-blue-100 px-1.5 py-0.5 rounded-md font-medium" {...props} />
+                                  mark: ({node, ...props}) => <mark className="bg-yellow-200 text-slate-900 px-1.5 py-0.5 rounded-md font-medium" {...props} />,
+                                  table: ({node, ...props}) => (
+                                    <div className="overflow-x-auto mb-4 rounded-lg border border-slate-200">
+                                      <table className="min-w-full divide-y divide-slate-200" {...props} />
+                                    </div>
+                                  ),
+                                  thead: ({node, ...props}) => <thead className="bg-slate-50" {...props} />,
+                                  tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200 bg-white" {...props} />,
+                                  tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+                                  th: ({node, ...props}) => <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider" {...props} />,
+                                  td: ({node, ...props}) => <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" {...props} />
                                 }}
                               >
                                 {msg.content}
                               </ReactMarkdown>
                               
                               {msg.sources && msg.sources.length > 0 && (
-                                <div className="mt-4 flex items-center gap-2">
-                                  <button 
-                                    onClick={() => setSelectedSources(msg.sources!)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-medium transition-colors"
-                                  >
-                                    <div className="flex -space-x-2">
-                                      {msg.sources.slice(0, 3).map((s, i) => {
-                                        let hostname = "web";
-                                        try { hostname = new URL(s.url).hostname; } catch(e) {}
-                                        return (
-                                          <div key={i} className="w-5 h-5 rounded-full bg-slate-700 border border-slate-800 flex items-center justify-center overflow-hidden">
-                                            <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-3 h-3" onError={(e) => e.currentTarget.style.display = 'none'} />
-                                          </div>
-                                        );
-                                      })}
+                                <div className="mt-6 flex flex-col gap-4 pt-4">
+                                  <div className="flex items-center gap-2">
+                                    <button 
+                                      onClick={() => setSelectedSources(msg.sources!)}
+                                      className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full text-sm font-medium transition-colors text-slate-700"
+                                    >
+                                      <div className="flex -space-x-2">
+                                        {msg.sources.slice(0, 3).map((s, i) => {
+                                          let hostname = "web";
+                                          try { hostname = new URL(s.url).hostname; } catch(e) {}
+                                          return (
+                                            <div key={i} className="w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
+                                              <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-3 h-3" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      <span>{msg.sources.length} fontes</span>
+                                    </button>
+                                  </div>
+
+                                  {msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
+                                    <div className="mt-2">
+                                      <h4 className="text-sm font-bold text-slate-700 mb-2">Acompanhamentos</h4>
+                                      <div className="flex flex-col gap-2">
+                                        {msg.followUpQuestions.map((q, i) => (
+                                          <button 
+                                            key={i}
+                                            onClick={() => setInputValue(q)}
+                                            className="text-left text-sm text-slate-600 hover:text-blue-600 hover:underline flex items-start gap-2"
+                                          >
+                                            <span className="text-slate-400 mt-0.5">↳</span> {q}
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
-                                    <span>{msg.sources.length} fontes</span>
-                                  </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -668,22 +735,22 @@ export default function App() {
                           )}
                           
                           {msg.artifact && (
-                            <div className="mt-6 border border-white/10 rounded-2xl overflow-hidden bg-white/5 shadow-lg">
-                              <div className="bg-black/40 px-4 py-3 border-b border-white/10 flex items-center gap-2 text-sm font-medium text-white/80">
-                                <Sparkles className="w-4 h-4 text-aqua" />
+                            <div className="mt-6 border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 shadow-sm">
+                              <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center gap-2 text-sm font-medium text-slate-700">
+                                <Sparkles className="w-4 h-4 text-blue-600" />
                                 Artifact Interativo
                               </div>
                               <div className="p-6 overflow-x-auto">
                                 {msg.artifact.isLoading ? (
-                                  <div className="flex flex-col items-center justify-center py-8 text-white/50 gap-2">
+                                  <div className="flex flex-col items-center justify-center py-8 text-slate-500 gap-2">
                                     <div className="flex items-center gap-3">
-                                      <div className="w-5 h-5 border-2 border-aqua border-t-transparent rounded-full animate-spin" />
+                                      <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                                       Gerando visualização...
                                     </div>
-                                    <p className="text-xs opacity-60">Tempo estimado: 1 minuto</p>
+                                    <p className="text-xs opacity-80">Tempo estimado: 1 minuto</p>
                                   </div>
                                 ) : msg.artifact.error ? (
-                                  <div className="text-red-400 py-4 text-center text-sm">
+                                  <div className="text-red-500 py-4 text-center text-sm">
                                     <p className="font-bold mb-1">Erro ao gerar artifact:</p>
                                     <p className="opacity-80">{typeof msg.artifact.error === 'string' ? msg.artifact.error : 'Erro desconhecido'}</p>
                                   </div>
@@ -784,7 +851,7 @@ export default function App() {
                                 setIsImageToolActive(true);
                                 setIsWebSearchActive(false);
                               }}
-                              className="mt-3 w-full py-2 bg-aqua/20 hover:bg-aqua/30 border border-aqua/30 rounded-xl text-aqua text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                              className="mt-3 w-full py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-blue-600 text-xs font-bold transition-colors flex items-center justify-center gap-2"
                             >
                               <Sparkles className="w-4 h-4" />
                               Ativar geração de imagens
@@ -792,7 +859,7 @@ export default function App() {
                           )}
                           {msg.isImageResponse && (
                             <div className="mt-4 space-y-3">
-                              <p className="text-xs text-white/50 italic">
+                              <p className="text-xs text-slate-500 italic">
                                 Quando o Milly AI 1.0 Image gera uma imagem, não é possível editar, ou alterar alguma coisa nela, aqui no chat.
                               </p>
                               <button 
@@ -801,7 +868,7 @@ export default function App() {
                                   setIsImageToolActive(true);
                                   setIsWebSearchActive(false);
                                 }}
-                                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white text-xs font-medium transition-colors flex items-center justify-center gap-2"
+                                className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 text-xs font-medium transition-colors flex items-center justify-center gap-2"
                               >
                                 <Sparkles className="w-4 h-4" />
                                 Gerar mais imagens
@@ -818,12 +885,12 @@ export default function App() {
                         animate={{ opacity: 1, x: 0 }}
                         className="flex gap-4"
                       >
-                        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border bg-aqua/20 border-aqua/20">
-                          <Bot className="w-5 h-5 text-aqua" />
+                        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border bg-blue-50 border-blue-200">
+                          <Bot className="w-5 h-5 text-blue-600" />
                         </div>
-                        <div className="glass-aqua rounded-tl-none p-4 rounded-2xl max-w-[80%] shadow-3d flex items-center gap-3">
-                          <div className="w-4 h-4 border-2 border-aqua border-t-transparent rounded-full animate-spin" />
-                          <span className="text-sm text-aqua font-medium">Gerando imagem...</span>
+                        <div className="bg-white rounded-tl-none p-4 rounded-2xl max-w-[80%] flex items-center gap-3">
+                          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                          <span className="text-sm text-blue-600 font-medium">Gerando imagem...</span>
                         </div>
                       </motion.div>
                     )}
@@ -833,14 +900,14 @@ export default function App() {
             </div>
 
             {/* Chat Input Area */}
-            <div className="p-4 bg-black relative z-50">
+            <div className="p-4 bg-white relative z-50 border-t border-slate-100">
               <div className="max-w-3xl mx-auto">
                 {/* Image Previews */}
                 {attachedImages.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2 px-2">
                     {attachedImages.map((img, i) => (
                       <div key={i} className="relative group">
-                        <img src={img} alt="Preview" className="w-16 h-16 object-cover rounded-xl border border-white/20" referrerPolicy="no-referrer" />
+                        <img src={img} alt="Preview" className="w-16 h-16 object-cover rounded-xl border border-slate-200" referrerPolicy="no-referrer" />
                         <button 
                           onClick={() => setAttachedImages(prev => prev.filter((_, idx) => idx !== i))}
                           className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -852,29 +919,29 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="glass rounded-[32px] border border-white/10 p-2 shadow-3d">
+                <div className="bg-slate-50 rounded-[32px] border border-slate-200 p-2 shadow-sm focus-within:border-slate-300 focus-within:shadow-md transition-all">
                   {/* Tool Pill Row */}
                   {(isImageToolActive || isWebSearchActive) && (
                     <div className="px-4 pt-2 flex items-center gap-2 flex-wrap">
                       {isImageToolActive && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded-full text-blue-400">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-blue-600">
                           <Sparkles className="w-4 h-4" />
                           <span className="text-xs font-medium">Criar imagem</span>
                           <button 
                             onClick={() => setIsImageToolActive(false)}
-                            className="hover:text-white transition-colors ml-1"
+                            className="hover:text-blue-800 transition-colors ml-1"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                       )}
                       {isWebSearchActive && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-600/20 border border-green-500/30 rounded-full text-green-400">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-green-600">
                           <Globe className="w-4 h-4" />
                           <span className="text-xs font-medium">Busca na web</span>
                           <button 
                             onClick={() => setIsWebSearchActive(false)}
-                            className="hover:text-white transition-colors ml-1"
+                            className="hover:text-green-800 transition-colors ml-1"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -892,7 +959,7 @@ export default function App() {
                       onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                       placeholder={isGeneratingImage ? "Gerando imagem..." : "Peça à Milly ou use /imagem..."}
                       disabled={isGeneratingImage}
-                      className="w-full bg-transparent border-none focus:outline-none text-white placeholder:text-white/20 text-base"
+                      className="w-full bg-transparent border-none focus:outline-none text-slate-900 placeholder:text-slate-400 text-base"
                     />
                   </div>
                   
@@ -909,14 +976,14 @@ export default function App() {
                       />
                       <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="p-2 hover:bg-white/5 rounded-full transition-colors text-white/60"
+                        className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500"
                       >
                         <Plus className="w-5 h-5" />
                       </button>
                       <div className="relative">
                         <button 
                           onClick={() => setIsToolsMenuOpen(!isToolsMenuOpen)}
-                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 rounded-full transition-colors text-white/60"
+                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-200 rounded-full transition-colors text-slate-500"
                         >
                           <Settings2 className="w-4 h-4" />
                           <span className="text-xs font-medium">Ferramentas</span>
@@ -928,7 +995,7 @@ export default function App() {
                               initial={{ opacity: 0, y: 10, scale: 0.95 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                              className="absolute bottom-full left-0 mb-2 w-48 glass border border-white/10 rounded-2xl overflow-hidden shadow-3xl z-[60]"
+                              className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-lg z-[60]"
                             >
                               <div className="p-2">
                                 <button
@@ -938,7 +1005,7 @@ export default function App() {
                                     if (!isImageToolActive) setIsWebSearchActive(false);
                                     setIsToolsMenuOpen(false);
                                   }}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${isImageToolActive ? 'bg-aqua/20 text-aqua' : 'hover:bg-white/5 text-white/60'}`}
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${isImageToolActive ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'}`}
                                 >
                                   <Sparkles className="w-4 h-4" />
                                   <span className="text-sm font-medium">Gerar imagens</span>
@@ -950,7 +1017,7 @@ export default function App() {
                                     if (!isWebSearchActive) setIsImageToolActive(false);
                                     setIsToolsMenuOpen(false);
                                   }}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors mt-1 ${isWebSearchActive ? 'bg-green-500/20 text-green-400' : 'hover:bg-white/5 text-white/60'}`}
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors mt-1 ${isWebSearchActive ? 'bg-green-50 text-green-600' : 'hover:bg-slate-50 text-slate-700'}`}
                                 >
                                   <Globe className="w-4 h-4" />
                                   <span className="text-sm font-medium">Busca na web</span>
@@ -965,7 +1032,7 @@ export default function App() {
                     <div className="flex items-center gap-1 relative">
                       <button 
                         onClick={() => setIsModeMenuOpen(!isModeMenuOpen)}
-                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 rounded-full transition-colors text-white/60"
+                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-200 rounded-full transition-colors text-slate-500"
                       >
                         <span className="text-xs font-medium">{chatMode}</span>
                         <ChevronDown className={`w-4 h-4 transition-transform ${isModeMenuOpen ? 'rotate-180' : ''}`} />
@@ -977,7 +1044,7 @@ export default function App() {
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="absolute bottom-full right-0 mb-2 w-40 glass border border-white/10 rounded-2xl overflow-hidden shadow-3xl z-[60]"
+                            className="absolute bottom-full right-0 mb-2 w-40 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-lg z-[60]"
                           >
                             {(['Rápido', 'Raciocínio', 'Pro'] as const).map((mode) => (
                               <button
@@ -990,14 +1057,14 @@ export default function App() {
                                   }
                                 }}
                                 className={`w-full px-4 py-3 text-left text-sm transition-colors flex items-center justify-between ${
-                                  chatMode === mode ? 'bg-aqua/10 text-aqua' : 'hover:bg-white/5 text-white/60'
-                                } ${mode !== 'Rápido' ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                  chatMode === mode ? 'bg-slate-50 text-slate-900 font-medium' : 'hover:bg-slate-50 text-slate-600'
+                                } ${mode !== 'Rápido' ? 'opacity-40 cursor-not-allowed' : ''}`}
                               >
                                 <div className="flex flex-col">
                                   <span>{mode}</span>
-                                  {mode !== 'Rápido' && <span className="text-[10px] opacity-50">Indisponível</span>}
+                                  {mode !== 'Rápido' && <span className="text-[10px] opacity-70">Indisponível</span>}
                                 </div>
-                                {chatMode === mode && <div className="w-1.5 h-1.5 bg-aqua rounded-full shadow-[0_0_8px_rgba(0,255,213,0.8)]" />}
+                                {chatMode === mode && <div className="w-1.5 h-1.5 bg-slate-900 rounded-full" />}
                               </button>
                             ))}
                           </motion.div>
@@ -1006,13 +1073,13 @@ export default function App() {
 
                       <button 
                         onClick={isRecording ? stopRecording : startRecording}
-                        className={`p-2 rounded-full transition-colors ${isRecording ? 'bg-red-500/20 text-red-500 animate-pulse' : 'hover:bg-white/5 text-white/60'}`}
+                        className={`p-2 rounded-full transition-colors ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-slate-200 text-slate-500'}`}
                       >
                         <Mic className="w-5 h-5" />
                       </button>
                       <button 
                         onClick={handleSendMessage}
-                        className={`ml-1 p-2 rounded-xl flex items-center justify-center transition-all ${inputValue.trim() || attachedImages.length > 0 ? 'bg-aqua text-black shadow-3d' : 'bg-white/5 text-white/20'}`}
+                        className={`ml-1 p-2 rounded-xl flex items-center justify-center transition-all ${inputValue.trim() || attachedImages.length > 0 ? 'bg-black text-white shadow-sm' : 'bg-slate-200 text-slate-400'}`}
                       >
                         <Send className="w-5 h-5" />
                       </button>
@@ -1034,23 +1101,23 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedSources(null)}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70] md:hidden"
+              className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-[70] md:hidden"
             />
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-[85%] md:w-96 bg-[#111] border-l border-white/10 z-[80] flex flex-col shadow-2xl"
+              className="fixed right-0 top-0 bottom-0 w-[85%] md:w-96 bg-white border-l border-slate-200 z-[80] flex flex-col shadow-2xl"
             >
-              <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
-                <h3 className="font-bold text-lg text-white">{selectedSources.length} fontes</h3>
-                <button onClick={() => setSelectedSources(null)} className="p-2 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 className="font-bold text-lg text-slate-900">{selectedSources.length} fontes</h3>
+                <button onClick={() => setSelectedSources(null)} className="p-2 hover:bg-slate-200 rounded-lg text-slate-500 hover:text-slate-700 transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-                <p className="text-xs text-white/40 mb-2">Fontes utilizadas para gerar a resposta:</p>
+                <p className="text-xs text-slate-500 mb-2">Fontes utilizadas para gerar a resposta:</p>
                 {selectedSources.map((source, idx) => {
                   let hostname = "web";
                   try { hostname = new URL(source.url).hostname; } catch(e) {}
@@ -1060,22 +1127,96 @@ export default function App() {
                       href={source.url} 
                       target="_blank" 
                       rel="noopener noreferrer" 
-                      className="block p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group"
+                      className="block p-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors group"
                     >
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div className="w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                           <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-3 h-3" onError={(e) => e.currentTarget.style.display = 'none'} />
                         </div>
-                        <span className="text-xs text-white/60 truncate group-hover:text-white/80 transition-colors">{hostname}</span>
+                        <span className="text-xs text-slate-500 truncate group-hover:text-slate-700 transition-colors">{hostname}</span>
                       </div>
-                      <h4 className="font-bold text-sm mb-1 line-clamp-2 text-aqua group-hover:underline">{source.title}</h4>
-                      <p className="text-xs text-white/50 line-clamp-3 leading-relaxed">{source.content}</p>
+                      <h4 className="font-bold text-sm mb-1 line-clamp-2 text-blue-600 group-hover:underline">{source.title}</h4>
+                      <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">{source.content}</p>
                     </a>
                   );
                 })}
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+      {/* Image Gallery Modal */}
+      <AnimatePresence>
+        {selectedImageGallery && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 md:p-8"
+          >
+            <button 
+              onClick={() => setSelectedImageGallery(null)}
+              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            <div className="w-full h-full max-w-7xl flex flex-col md:flex-row gap-4 md:gap-8">
+              {/* Main Image */}
+              <div className="flex-1 relative flex items-center justify-center min-h-[50vh] md:min-h-0">
+                <img 
+                  src={`https://wsrv.nl/?url=${encodeURIComponent(selectedImageGallery.images[selectedImageGallery.currentIndex])}`}
+                  alt="Gallery main"
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                  referrerPolicy="no-referrer"
+                />
+                
+                {/* Navigation Arrows */}
+                {selectedImageGallery.currentIndex > 0 && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImageGallery(prev => prev ? {...prev, currentIndex: prev.currentIndex - 1} : null);
+                    }}
+                    className="absolute left-4 p-3 bg-black/50 hover:bg-black/80 rounded-full text-white transition-colors"
+                  >
+                    <ChevronRight className="w-6 h-6 rotate-180" />
+                  </button>
+                )}
+                {selectedImageGallery.currentIndex < selectedImageGallery.images.length - 1 && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImageGallery(prev => prev ? {...prev, currentIndex: prev.currentIndex + 1} : null);
+                    }}
+                    className="absolute right-4 p-3 bg-black/50 hover:bg-black/80 rounded-full text-white transition-colors"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                )}
+              </div>
+
+              {/* Thumbnails Sidebar */}
+              <div className="w-full md:w-80 flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto pb-4 md:pb-0 scrollbar-hide">
+                {selectedImageGallery.images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedImageGallery(prev => prev ? {...prev, currentIndex: idx} : null)}
+                    className={`relative flex-shrink-0 w-24 h-24 md:w-full md:h-48 rounded-lg overflow-hidden border-2 transition-all ${
+                      idx === selectedImageGallery.currentIndex ? 'border-blue-500 opacity-100' : 'border-transparent opacity-50 hover:opacity-100'
+                    }`}
+                  >
+                    <img 
+                      src={`https://wsrv.nl/?url=${encodeURIComponent(img)}`}
+                      alt={`Thumbnail ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

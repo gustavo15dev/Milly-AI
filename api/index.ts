@@ -114,6 +114,9 @@ A filosofia tem vários ramos.
 
     let responseMessage = completion.choices[0]?.message;
     let sources: any[] = [];
+    let searchImages: any[] = [];
+    let searchFollowUps: string[] = [];
+    let searchAnswer: string = "";
 
     if (responseMessage?.tool_calls) {
       currentMessages.push(responseMessage);
@@ -136,19 +139,37 @@ A filosofia tem vários ramos.
                 api_key: tavilyApiKey,
                 query: query,
                 search_depth: "basic",
-                max_results: 5
+                max_results: 10,
+                include_images: true,
+                include_image_descriptions: true,
+                include_answer: true,
+                follow_up_questions: true,
+                include_usage: true,
+                include_domains: [
+                  "wikipedia.org", "bbc.com", "cnn.com", "nytimes.com", "reuters.com", 
+                  "bloomberg.com", "forbes.com", "techcrunch.com", "theverge.com", "wired.com", 
+                  "nature.com", "science.org", "gov.br", "edu.br", "globo.com", "uol.com.br", 
+                  "estadao.com.br", "folha.uol.com.br", "cnnbrasil.com.br", "g1.globo.com",
+                  "agenciabrasil.ebc.com.br", "exame.com", "valor.globo.com", "infomoney.com.br"
+                ]
               })
             });
 
             if (tavilyRes.ok) {
               const tavilyData = await tavilyRes.json();
               sources = tavilyData.results || [];
+              searchImages = tavilyData.images || [];
+              searchFollowUps = tavilyData.follow_up_questions || [];
+              searchAnswer = tavilyData.answer || "";
               
               currentMessages.push({
                 tool_call_id: toolCall.id,
                 role: "tool",
                 name: "web_search",
-                content: JSON.stringify(sources.map((s: any) => ({ title: s.title, content: s.content, url: s.url })))
+                content: JSON.stringify({
+                  results: sources.map((s: any) => ({ title: s.title, content: s.content, url: s.url })),
+                  answer: searchAnswer
+                })
               });
             } else {
               currentMessages.push({
@@ -175,6 +196,15 @@ A filosofia tem vários ramos.
         model: selectedModel,
       });
       responseMessage = completion.choices[0]?.message;
+      
+      res.json({ 
+        content: responseMessage?.content || "",
+        sources: sources.length > 0 ? sources : undefined,
+        images: searchImages.length > 0 ? searchImages : undefined,
+        followUpQuestions: searchFollowUps.length > 0 ? searchFollowUps : undefined,
+        searchAnswer: searchAnswer || undefined
+      });
+      return;
     }
 
     res.json({ 

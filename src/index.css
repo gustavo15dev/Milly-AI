@@ -12,26 +12,34 @@
 
 @layer base {
   body {
-    @apply bg-black text-white antialiased selection:bg-aqua selection:text-black;
+    @apply bg-white text-slate-900 antialiased selection:bg-slate-200 selection:text-black;
   }
 }
 
 @layer utilities {
   .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    @apply bg-white/80 backdrop-blur-xl border border-slate-200;
   }
   
   .glass-aqua {
-    @apply bg-aqua/5 backdrop-blur-xl border border-aqua/20;
+    @apply bg-slate-50 backdrop-blur-xl border border-slate-200;
   }
 
   .shadow-3d {
     box-shadow: 
-      0 10px 30px -10px rgba(0, 0, 0, 0.5),
-      0 0 20px rgba(0, 255, 213, 0.1);
+      0 10px 30px -10px rgba(0, 0, 0, 0.1),
+      0 0 20px rgba(0, 0, 0, 0.05);
   }
 
   .text-glow {
-    text-shadow: 0 0 15px rgba(0, 255, 213, 0.5);
+    text-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
