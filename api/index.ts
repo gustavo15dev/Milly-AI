@@ -70,8 +70,8 @@ Responda como um especialista conversando com um colega competente. Sem formalid
 - Para informações MUITO importantes que devem ser "grifadas" (highlight), use a tag HTML <mark>texto aqui</mark>. Isso criará um fundo azul claro no texto, destacando-o.
 
 ### ARTIFACTS (INFOGRÁFICOS E RESUMOS VISUAIS) - REGRA ABSOLUTA:
-- Se o usuário pedir um resumo complexo, mapa mental, linha do tempo, tabela comparativa, ou algo que se beneficie MUITO de uma visualização estruturada e colorida, você DEVE gerar um Artifact.
-- REGRAS DO ARTIFACT:
+- A decisão de gerar um Artifact é tomada pelo classificador. Siga a INSTRUÇÃO CRÍTICA DO CLASSIFICADOR no final deste prompt.
+- REGRAS DO ARTIFACT (SE PERMITIDO):
   1. O prompt do Artifact DEVE ficar EXCLUSIVAMENTE dentro das tags <artifact> e </artifact>.
   2. NUNCA escreva instruções de design, gráficos ou mapas mentais em texto puro. O usuário NÃO DEVE LER as instruções que você está passando para o gerador de código.
   3. Coloque a tag <artifact> no FINAL da sua resposta, após todo o texto que o usuário vai ler.
@@ -114,22 +114,68 @@ A filosofia tem vários ramos.
           messages: [
             {
               role: "system",
-              content: `Você é um classificador binário. Sua tarefa é analisar a pergunta do usuário e responder APENAS "SIM" ou "NÃO".
-Responda "SIM" se a pergunta requer informações atuais, em tempo real ou que possam ter mudado após sua data de conhecimento (notícias, preços, eventos atuais, informações dinâmicas, tendências, resultados de competições, status de pessoas públicas, etc).
-Responda "NÃO" se a pergunta pode ser respondida com conhecimento geral, conceitos estabelecidos, explicações, cálculos, criatividade ou histórico não-recente.
-IMPORTANTE: Responda APENAS com uma palavra: "SIM" ou "NÃO". Nada mais.`
+              content: `Você é um classificador de intenções. Sua tarefa é analisar a pergunta do usuário e responder APENAS com as palavras permitidas.
+Vocabulário permitido:
+- "SIM": se a pergunta requer informações atuais, em tempo real ou que possam ter mudado (notícias, preços, eventos atuais).
+- "NÃO": se a pergunta pode ser respondida com conhecimento geral, conceitos, explicações, etc.
+- "CLIMA: [Nome da Cidade]": se o usuário estiver perguntando sobre o clima ou previsão do tempo de uma cidade específica.
+- "GERAL": se o usuário pedir um resumo complexo, mapa mental, linha do tempo, tabela comparativa, ou algo que se beneficie MUITO de uma visualização estruturada e colorida (Artifact interativo).
+- "GRÁFICO_LINHAS": se o usuário pedir um gráfico de linhas.
+- "GRÁFICO_VERTICAL": se o usuário pedir um gráfico de barras verticais.
+- "GRÁFICO_PIZZA": se o usuário pedir um gráfico de pizza.
+- "GRÁFICO_HORIZONTAL": se o usuário pedir um gráfico de barras horizontais.
+- "GRÁFICO_ROSCA": se o usuário pedir um gráfico de rosca (doughnut).
+
+Regras de Combinação:
+- Você pode combinar "SIM" ou "NÃO" com "CLIMA", "GERAL" ou "GRÁFICO_[TIPO]" separando por vírgula.
+- NUNCA combine "CLIMA", "GERAL" e "GRÁFICO_[TIPO]" na mesma resposta. Escolha apenas um deles (ou nenhum).
+
+Exemplos:
+"Qual o clima em Campinas?" -> NÃO, CLIMA: Campinas
+"Crie um mapa mental sobre a Segunda Guerra Mundial" -> NÃO, GERAL
+"Quais as últimas notícias sobre IA? Faça um resumo visual" -> SIM, GERAL
+"Me mostre um gráfico de pizza com os maiores países do mundo" -> NÃO, GRÁFICO_PIZZA
+"Notícias de hoje e faça um gráfico de linhas das ações da Apple" -> SIM, GRÁFICO_LINHAS
+
+IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
             },
             { role: "user", content: userText }
           ],
           temperature: 0,
-          max_tokens: 10,
+          max_tokens: 20,
         }, { signal: controller.signal } as any);
 
         clearTimeout(timeoutId);
 
         const answer = classifierRes.choices[0]?.message?.content?.trim().toUpperCase() || "NÃO";
+        
         if (answer.includes("SIM")) {
           shouldSearch = true;
+        }
+        
+        const climaMatch = answer.match(/CLIMA:\s*([^,]+)/i);
+        if (climaMatch) {
+          const city = climaMatch[1].trim();
+          res.write(`data: ${JSON.stringify({ type: 'weather_start', city })}\n\n`);
+        }
+
+        const graficoMatch = answer.match(/GRÁFICO_([A-Z]+)/i);
+        
+        if (graficoMatch && !climaMatch) {
+          const tipo = graficoMatch[1].toUpperCase();
+          const templates: Record<string, string> = {
+            LINHAS: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 600px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="lineChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('lineChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'line',\n            data: {\n                labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'], // Eixo X (Editável)\n                datasets: [{\n                    label: 'Vendas da Semana (Exemplo)', // Nome da série (Editável)\n                    data: [12, 19, 15, 25, 22, 30, 28], // Valores (Editável)\n                    borderColor: '#3b82f6',\n                    backgroundColor: 'rgba(59, 130, 246, 0.1)',\n                    fill: true,\n                    tension: 0.4\n                }]\n            },\n            options: { responsive: true, plugins: { legend: { display: true } } }\n        });\n    </script>\n</body>\n</html>`,
+            VERTICAL: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 600px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="barChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('barChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'bar',\n            data: {\n                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai'], \n                datasets: [{\n                    label: 'Novos Usuários',\n                    data: [400, 650, 590, 800, 950],\n                    backgroundColor: '#10b981',\n                    borderRadius: 8\n                }]\n            },\n            options: { responsive: true, scales: { y: { beginAtZero: true } } }\n        });\n    </script>\n</body>\n</html>`,
+            PIZZA: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 400px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="pieChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('pieChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'pie',\n            data: {\n                labels: ['Eletrônicos', 'Moda', 'Alimentos'],\n                datasets: [{\n                    data: [45, 25, 30],\n                    backgroundColor: ['#6366f1', '#f43f5e', '#f59e0b']\n                }]\n            },\n            options: { plugins: { legend: { position: 'bottom' } } }\n        });\n    </script>\n</body>\n</html>`,
+            HORIZONTAL: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 600px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="horizBarChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('horizBarChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'bar',\n            data: {\n                labels: ['Produto A', 'Produto B', 'Produto C', 'Produto D'],\n                datasets: [{\n                    label: 'Estoque Atual',\n                    data: [120, 190, 30, 85],\n                    backgroundColor: '#8b5cf6',\n                    borderRadius: 5\n                }]\n            },\n            options: { indexAxis: 'y', responsive: true }\n        });\n    </script>\n</body>\n</html>`,
+            ROSCA: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 400px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="doughnutChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('doughnutChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'doughnut',\n            data: {\n                labels: ['Concluído', 'Em Andamento', 'Pendente'],\n                datasets: [{\n                    data: [70, 20, 10],\n                    backgroundColor: ['#22c55e', '#3b82f6', '#e2e8f0'],\n                    borderWidth: 0,\n                    hoverOffset: 10\n                }]\n            },\n            options: { cutout: '70%', plugins: { legend: { position: 'bottom' } } }\n        });\n    </script>\n</body>\n</html>`
+          };
+          const template = templates[tipo] || templates.LINHAS;
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM GRÁFICO DO TIPO ${tipo}. É OBRIGATÓRIO incluir o gráfico em qualquer lugar da sua resposta (no início, no meio ou no final) usando um bloco de código markdown com a linguagem "html_chart". Você DEVE usar o seguinte template HTML base, mas alterando APENAS os dados (labels e data) e os textos para refletir a sua resposta. NÃO altere a estrutura do HTML ou CSS.\n\nTemplate a ser usado dentro do bloco \`\`\`html_chart\n${template}\n\`\`\``;
+        } else if (answer.includes("GERAL") && !climaMatch) {
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM ARTIFACT (GERAL) para esta resposta. É OBRIGATÓRIO incluir a tag <artifact> no final da sua resposta com o prompt para o gerador visual.`;
+        } else {
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ NÃO DEVE GERAR UM ARTIFACT para esta resposta. É PROIBIDO usar a tag <artifact> ou blocos de código html_chart nesta resposta. Apenas responda em texto.`;
         }
       } catch (err) {
         console.error("Classifier error or timeout:", err);

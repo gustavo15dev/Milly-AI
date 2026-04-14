@@ -201,6 +201,25 @@ const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: 
         ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-4" {...props} />,
         ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-4" {...props} />,
         li: ({node, ...props}) => <li className="mb-1" {...props} />,
+        code: ({node, inline, className, children, ...props}: any) => {
+          const match = /language-(\w+)/.exec(className || '');
+          if (!inline && match && match[1] === 'html_chart') {
+            return (
+              <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white">
+                <iframe 
+                  srcDoc={String(children).replace(/\n$/, '')} 
+                  className="w-full h-[450px] border-0"
+                  sandbox="allow-scripts"
+                />
+              </div>
+            );
+          }
+          return (
+            <code className={className} {...props}>
+              {children}
+            </code>
+          );
+        },
         a: ({node, href, children, ...props}) => {
           return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" {...props}>{children}</a>;
         },
@@ -223,6 +242,8 @@ const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: 
     </ReactMarkdown>
   );
 };
+
+import { WeatherCard } from './components/WeatherCard';
 
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -248,6 +269,7 @@ export default function App() {
     isSearching?: boolean;
     isClassifying?: boolean;
     isStreaming?: boolean;
+    weatherCity?: string;
   }[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [chatMode, setChatMode] = useState<'Rápido' | 'Raciocínio' | 'Pro'>('Rápido');
@@ -512,6 +534,8 @@ export default function App() {
                   newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: true };
                 } else if (data.type === 'search_start') {
                   newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: false, searchQuery: data.query, isSearching: true };
+                } else if (data.type === 'weather_start') {
+                  newMsgs[aiMessageIndex] = { ...currentMsg, weatherCity: data.city };
                 } else if (data.type === 'search_complete') {
                   newMsgs[aiMessageIndex] = { 
                     ...currentMsg, 
@@ -795,6 +819,60 @@ export default function App() {
                   </div>
                 </motion.div>
               </div>
+
+              {/* Milly Artifact 1.0 Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                className="mt-24 relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-[2rem] blur-xl opacity-20" />
+                <div className="relative bg-white border border-slate-200 rounded-[2rem] p-8 md:p-12 shadow-xl overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+                  
+                  <div className="relative z-10 max-w-3xl">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-600 text-xs font-bold uppercase tracking-widest mb-6">
+                      <Sparkles className="w-3 h-3" />
+                      Novo Projeto
+                    </div>
+                    
+                    <h2 className="text-3xl md:text-4xl font-display font-bold text-slate-900 mb-4">
+                      Milly Artifact 1.0
+                    </h2>
+                    
+                    <p className="text-slate-600 text-lg leading-relaxed mb-8">
+                      O projeto Milly Artifact 1.0 traz o visual para o usuário com confiabilidade, rapidez e qualidade. 
+                      Gere infográficos, dashboards, mapas mentais e resumos visuais ricos e detalhados diretamente no chat, 
+                      transformando dados complexos em interfaces elegantes e fáceis de entender.
+                    </p>
+                    
+                    <div className="grid sm:grid-cols-3 gap-6">
+                      <div className="flex flex-col gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                          <Sparkle className="w-5 h-5" />
+                        </div>
+                        <h3 className="font-bold text-slate-900">Visual Rico</h3>
+                        <p className="text-sm text-slate-500">Interfaces modernas com Tailwind CSS e componentes interativos.</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                        <h3 className="font-bold text-slate-900">Confiabilidade</h3>
+                        <p className="text-sm text-slate-500">Dados precisos estruturados de forma clara e objetiva.</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                          <Cpu className="w-5 h-5" />
+                        </div>
+                        <h3 className="font-bold text-slate-900">Rapidez</h3>
+                        <p className="text-sm text-slate-500">Geração instantânea de componentes visuais complexos.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
             </main>
           </motion.div>
         ) : (
@@ -927,6 +1005,10 @@ export default function App() {
                                     );
                                   })}
                                 </div>
+                              )}
+
+                              {msg.weatherCity && (
+                                <WeatherCard city={msg.weatherCity} />
                               )}
 
                               <TypewriterMarkdown 
