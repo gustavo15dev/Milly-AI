@@ -41,26 +41,33 @@ app.post("/api/chat", async (req, res) => {
     
     const groqClient = getGroq();
     
-    const systemPrompt = `Você é um sistema de inteligência de elite, focado em lógica pura, eficiência e profundidade analítica.
+    const systemPrompt = `Você é um sistema de inteligência focado em lógica, eficiência e clareza, mas com um tom amigável e humano.
 
 ### DIRETRIZES DE PERSONALIDADE:
-1. **Sem "Encheção de Linguiça":** Não peça desculpas, não use frases de transição inúteis (ex: "Entendo sua pergunta", "Aqui está o que você pediu") e não dê avisos éticos óbvios a menos que seja estritamente necessário.
-2. **Nível Intelectual:** Comunique-se como um especialista sênior. Se o usuário fizer uma pergunta complexa, responda com profundidade técnica. Se a pergunta for simples, seja ultra-conciso.
-3. **Senso Crítico:** Não aceite premissas erradas do usuário. Se o usuário disser algo factualmente incorreto, corrija-o de forma direta e educada, explicando o porquê.
-4. **Verborragia Zero:** Se uma resposta pode ser dada em uma frase, não use um parágrafo. Use listas e negrito para facilitar a leitura.
-5. **Autenticidade:** Tenha uma opinião técnica fundamentada. Não seja "em cima do muro". Se houver uma solução melhor para o que o usuário quer fazer, sugira-a imediatamente.
+1. **Sem Encheção:** Não confirme que entendeu, não peça desculpas, não use transições inúteis ("Entendo que...", "Aqui está"). Exceto: seja caloroso e conversativo em interações casuais.
+2. **Nível Intelectual Adaptativo:** Responda no nível da pergunta. "Oi?" → resposta amigável e receptiva. Pergunta técnica complexa → profundidade especializada.
+3. **Senso Crítico:** Corrija premissas erradas do usuário de forma direta e educada.
+4. **Comunicação Expressiva:** Seja conciso, mas não robótico. Use emojis (👋, 💡, 🚀) naturalmente para dar vida à conversa e torná-la mais leve. Use **negrito** e listas para estruturar a leitura.
+5. **Opinião Fundamentada:** Se há solução melhor, sugira. Não fique em cima do muro.
 
-### RESTRIÇÕES CRÍTICAS DE OUTPUT:
-- PROIBIDO: Iniciar a resposta confirmando que entendeu as instruções ou que vai seguir o novo estilo.
-- PROIBIDO: Frases como "Entendido", "Vou começar agora", "Como você pediu" ou "Seguindo suas diretrizes".
-- AÇÃO: Comece diretamente na solução. Se o usuário te der um comando, execute. Se te der uma pergunta, responda. 
-- META: Se eu te der o prompt, sua primeira palavra deve ser o conteúdo da resposta, nunca um comentário sobre o seu próprio comportamento.
+### COMPORTAMENTO POR CONTEXTO:
+- **Conversas triviais** ("Oi", "Como vai?"): Responda de forma calorosa, conversativa e use emojis. Mostre entusiasmo em ajudar!
+- **Dúvidas técnicas**: Profundidade máxima, mas mantendo a clareza. Código sem comentários óbvios.
+- **Análises**: Mostre apenas a conclusão. Raciocínio acontece internamente.
+- **Importante destacar**: Use negrito (**assim**), não HTML.
 
-### REGRAS DE RESPOSTA:
-- Use Markdown para estruturar a resposta (negrito, itálico, listas, parágrafos).
+### RESTRIÇÕES DE OUTPUT:
+- PROIBIDO: "Entendido", "Sistema Ativado", "Vou começar agora", frases sobre seu próprio comportamento.
+- PROIBIDO: Apresentações tipo "Bem-vindo ao meu espaço".
+- AÇÃO: Primeira palavra = conteúdo da resposta. Sempre.
+- USE: Markdown. Seja estruturado mas natural.
+
+### REGRA DE OURO:
+Responda como um especialista conversando com um colega competente. Sem formalidade desnecessária, sem floreios, sem sobre-explicações.
+
+### CONTEXTO DE SAÍDA:
+- Se a resposta é em texto puro: use **negrito** e markdown.
 - Para informações MUITO importantes que devem ser "grifadas" (highlight), use a tag HTML <mark>texto aqui</mark>. Isso criará um fundo azul claro no texto, destacando-o.
-- Se for código, escreva apenas o código e breves comentários essenciais.
-- Se for uma análise, use o raciocínio "Chain of Thought" internamente para entregar apenas a conclusão mais lógica.
 
 ### ARTIFACTS (INFOGRÁFICOS E RESUMOS VISUAIS) - REGRA ABSOLUTA:
 - Se o usuário pedir um resumo complexo, mapa mental, linha do tempo, tabela comparativa, ou algo que se beneficie MUITO de uma visualização estruturada e colorida, você DEVE gerar um Artifact.
@@ -80,140 +87,135 @@ A filosofia tem vários ramos.
     const selectedModel = hasImages ? "llama-3.2-11b-vision-preview" : (model || "llama-3.1-8b-instant");
     const supportsTools = !hasImages;
 
-    const tools = (useWebSearch && supportsTools) ? [
-      {
-        type: "function" as const,
-        function: {
-          name: "web_search",
-          description: "Pesquisa na internet por informações atualizadas, notícias ou fatos recentes.",
-          parameters: {
-            type: "object",
-            properties: {
-              query: {
-                type: "string",
-                description: "A consulta de pesquisa para enviar ao buscador."
-              }
-            },
-            required: ["query"]
-          }
-        }
-      }
-    ] : undefined;
-
     let currentMessages: any[] = [
       { role: "system", content: systemPrompt },
       ...messages
     ];
 
-    let completion = await groqClient.chat.completions.create({
-      messages: currentMessages,
-      model: selectedModel,
-      tools: tools,
-      tool_choice: tools ? "auto" : "none",
-    });
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-    let responseMessage = completion.choices[0]?.message;
-    let sources: any[] = [];
-    let searchImages: any[] = [];
-    let searchFollowUps: string[] = [];
-    let searchAnswer: string = "";
+    const lastMessage = messages[messages.length - 1];
+    const isUserMessage = lastMessage?.role === "user";
+    const userText = typeof lastMessage?.content === "string" ? lastMessage.content : "";
 
-    if (responseMessage?.tool_calls) {
-      currentMessages.push(responseMessage);
+    let shouldSearch = false;
 
-      for (const toolCall of responseMessage.tool_calls) {
-        if (toolCall.function.name === "web_search") {
-          try {
-            const args = JSON.parse(toolCall.function.arguments);
-            const query = args.query;
+    if (isUserMessage && userText && supportsTools) {
+      res.write(`data: ${JSON.stringify({ type: 'classifier_start' })}\n\n`);
 
-            const tavilyApiKey = process.env.TAVILY_API_KEY;
-            if (!tavilyApiKey) {
-              throw new Error("TAVILY_API_KEY is not set");
-            }
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-            const tavilyRes = await fetch("https://api.tavily.com/search", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                api_key: tavilyApiKey,
-                query: query,
-                search_depth: "basic",
-                max_results: 10,
-                include_images: true,
-                include_image_descriptions: true,
-                include_answer: true,
-                follow_up_questions: true,
-                include_usage: true,
-                include_domains: [
-                  "wikipedia.org", "bbc.com", "cnn.com", "nytimes.com", "reuters.com", 
-                  "bloomberg.com", "forbes.com", "techcrunch.com", "theverge.com", "wired.com", 
-                  "nature.com", "science.org", "gov.br", "edu.br", "globo.com", "uol.com.br", 
-                  "estadao.com.br", "folha.uol.com.br", "cnnbrasil.com.br", "g1.globo.com",
-                  "agenciabrasil.ebc.com.br", "exame.com", "valor.globo.com", "infomoney.com.br"
-                ]
-              })
-            });
+        const classifierRes = await groqClient.chat.completions.create({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "system",
+              content: `Você é um classificador binário. Sua tarefa é analisar a pergunta do usuário e responder APENAS "SIM" ou "NÃO".
+Responda "SIM" se a pergunta requer informações atuais, em tempo real ou que possam ter mudado após sua data de conhecimento (notícias, preços, eventos atuais, informações dinâmicas, tendências, resultados de competições, status de pessoas públicas, etc).
+Responda "NÃO" se a pergunta pode ser respondida com conhecimento geral, conceitos estabelecidos, explicações, cálculos, criatividade ou histórico não-recente.
+IMPORTANTE: Responda APENAS com uma palavra: "SIM" ou "NÃO". Nada mais.`
+            },
+            { role: "user", content: userText }
+          ],
+          temperature: 0,
+          max_tokens: 10,
+        }, { signal: controller.signal } as any);
 
-            if (tavilyRes.ok) {
-              const tavilyData = await tavilyRes.json();
-              sources = tavilyData.results || [];
-              searchImages = tavilyData.images || [];
-              searchFollowUps = tavilyData.follow_up_questions || [];
-              searchAnswer = tavilyData.answer || "";
-              
-              currentMessages.push({
-                tool_call_id: toolCall.id,
-                role: "tool",
-                name: "web_search",
-                content: JSON.stringify({
-                  results: sources.map((s: any) => ({ title: s.title, content: s.content, url: s.url })),
-                  answer: searchAnswer
-                })
-              });
-            } else {
-              currentMessages.push({
-                tool_call_id: toolCall.id,
-                role: "tool",
-                name: "web_search",
-                content: "Erro ao realizar a busca na web."
-              });
-            }
-          } catch (err) {
-            console.error("Tavily Search Error:", err);
-            currentMessages.push({
-              tool_call_id: toolCall.id,
-              role: "tool",
-              name: "web_search",
-              content: "Falha na integração com o buscador."
-            });
-          }
+        clearTimeout(timeoutId);
+
+        const answer = classifierRes.choices[0]?.message?.content?.trim().toUpperCase() || "NÃO";
+        if (answer.includes("SIM")) {
+          shouldSearch = true;
         }
+      } catch (err) {
+        console.error("Classifier error or timeout:", err);
       }
-
-      completion = await groqClient.chat.completions.create({
-        messages: currentMessages,
-        model: selectedModel,
-      });
-      responseMessage = completion.choices[0]?.message;
-      
-      res.json({ 
-        content: responseMessage?.content || "",
-        sources: sources.length > 0 ? sources : undefined,
-        images: searchImages.length > 0 ? searchImages : undefined,
-        followUpQuestions: searchFollowUps.length > 0 ? searchFollowUps : undefined,
-        searchAnswer: searchAnswer || undefined
-      });
-      return;
     }
 
-    res.json({ 
-      content: responseMessage?.content || "",
-      sources: sources.length > 0 ? sources : undefined
+    if (shouldSearch) {
+      res.write(`data: ${JSON.stringify({ type: 'search_start', query: userText })}\n\n`);
+      try {
+        const tavilyApiKey = process.env.TAVILY_API_KEY;
+        if (!tavilyApiKey) throw new Error("TAVILY_API_KEY is not set");
+
+        const tavilyRes = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: tavilyApiKey,
+            query: userText,
+            search_depth: "basic",
+            max_results: 10,
+            include_images: true,
+            include_image_descriptions: true,
+            include_answer: true,
+            follow_up_questions: true,
+            include_usage: true,
+            include_domains: [
+              "wikipedia.org", "bbc.com", "cnn.com", "nytimes.com", "reuters.com", 
+              "bloomberg.com", "forbes.com", "techcrunch.com", "theverge.com", "wired.com", 
+              "nature.com", "science.org", "gov.br", "edu.br", "globo.com", "uol.com.br", 
+              "estadao.com.br", "folha.uol.com.br", "cnnbrasil.com.br", "g1.globo.com",
+              "agenciabrasil.ebc.com.br", "exame.com", "valor.globo.com", "infomoney.com.br"
+            ]
+          })
+        });
+
+        if (tavilyRes.ok) {
+          const tavilyData = await tavilyRes.json();
+          const sources = tavilyData.results || [];
+          const searchImages = tavilyData.images || [];
+          const searchFollowUps = tavilyData.follow_up_questions || [];
+          const searchAnswer = tavilyData.answer || "";
+          
+          res.write(`data: ${JSON.stringify({ 
+            type: 'search_complete', 
+            query: userText, 
+            sources, 
+            images: searchImages,
+            followUpQuestions: searchFollowUps,
+            searchAnswer
+          })}\n\n`);
+
+          const searchContext = `\n\n### RESULTADOS DA BUSCA NA WEB (Contexto Atualizado - Data Atual: ${new Date().toLocaleDateString('pt-BR')}):\n${sources.slice(0, 5).map((s: any, index: number) => `Fonte: ${s.title}\nURL: ${s.url}\nConteúdo: ${s.content}`).join("\n\n")}\n\nResposta Resumida da Busca: ${searchAnswer}\n\nUse as informações acima para responder à pergunta do usuário de forma natural. Não adicione seções de "Fontes" ou "Referências" no final, apenas incorpore a informação na sua resposta.`;
+          
+          currentMessages[currentMessages.length - 1].content += searchContext;
+        } else {
+          res.write(`data: ${JSON.stringify({ type: 'search_complete', query: userText, sources: [] })}\n\n`);
+        }
+      } catch (err) {
+        console.error("Tavily Search Error:", err);
+        res.write(`data: ${JSON.stringify({ type: 'search_complete', query: userText, sources: [] })}\n\n`);
+      }
+    }
+
+    // No tool calls, just stream the response
+    const stream = await groqClient.chat.completions.create({
+      messages: currentMessages,
+      model: selectedModel,
+      stream: true
     });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) {
+        res.write(`data: ${JSON.stringify({ type: 'chunk', content })}\n\n`);
+      }
+    }
+    res.write(`data: [DONE]\n\n`);
+    res.end();
   } catch (error: any) {
     console.error("Groq API Error:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message || "Internal Server Error" });
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+      res.end();
+    }
   }
 });
 

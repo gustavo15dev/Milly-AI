@@ -8,8 +8,10 @@ import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import Benchmark from "./components/Benchmark";
 import { 
   Sparkles, 
+  Sparkle,
   MessageSquare, 
   Zap, 
   Shield, 
@@ -27,12 +29,204 @@ import {
   Plus,
   Settings2,
   Mic,
-  ChevronDown
+  ChevronDown,
+  CheckCircle2,
+  Link2
 } from "lucide-react";
+
+const SearchLog = ({ query, sources, isSearching }: { query?: string, sources?: any[], isSearching?: boolean }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasOpenedWhileSearching, setHasOpenedWhileSearching] = useState(false);
+
+  // Auto-close when search finishes if it was opened during search
+  useEffect(() => {
+    if (!isSearching && hasOpenedWhileSearching) {
+      setIsOpen(false);
+      setHasOpenedWhileSearching(false);
+    }
+  }, [isSearching, hasOpenedWhileSearching]);
+
+  if (isSearching && (!sources || sources.length === 0)) {
+    return (
+      <div className="mb-4 font-sans">
+        <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
+          <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+          Pesquisando na web...
+        </div>
+      </div>
+    );
+  }
+
+  if (!isSearching && (!sources || sources.length === 0)) {
+    return (
+      <div className="mb-4 font-sans">
+        <div className="flex items-center gap-2 text-red-400 text-sm font-medium">
+          <Globe className="w-4 h-4" />
+          Pesquisa na web falhou ou não retornou resultados.
+        </div>
+      </div>
+    );
+  }
+
+  const favicons = Array.from(new Set((sources || []).map(s => {
+    try {
+      return new URL(s.url).hostname;
+    } catch {
+      return '';
+    }
+  }).filter(Boolean))).slice(0, 3).map(hostname => `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`);
+
+  return (
+    <div className="mb-4 font-sans">
+      <button 
+        onClick={() => {
+          setIsOpen(!isOpen);
+          if (isSearching) setHasOpenedWhileSearching(!isOpen);
+        }}
+        className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors text-sm font-medium"
+      >
+        {isSearching ? (
+          <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <div className="flex -space-x-2 mr-1">
+            {favicons.map((icon, i) => (
+              <img key={i} src={icon} alt="" className="w-5 h-5 rounded-full border-2 border-white bg-white shadow-sm" />
+            ))}
+          </div>
+        )}
+        {isSearching ? "Pesquisando na web" : "Pesquisou na web"}
+        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </button>
+
+      {isOpen && sources && sources.length > 0 && (
+        <div className="mt-4 pl-2 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="relative border-l border-slate-300 ml-2 pl-6 pb-6">
+            <div className="absolute -left-[11px] top-0 bg-white text-slate-400">
+              <Globe className="w-5 h-5" />
+            </div>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-slate-600 text-sm">{query || "Pesquisa na web"}</span>
+              <span className="text-slate-400 text-xs">{sources.length} resultados</span>
+            </div>
+            
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              {sources.map((source, idx) => {
+                let hostname = '';
+                try {
+                  hostname = new URL(source.url).hostname;
+                } catch (e) {}
+                
+                return (
+                  <a 
+                    key={idx}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <img 
+                        src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} 
+                        alt="" 
+                        className="w-4 h-4 flex-shrink-0"
+                      />
+                      <span className="text-sm text-slate-700 truncate group-hover:text-blue-600 transition-colors">
+                        {source.title}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400 flex-shrink-0 ml-4 truncate max-w-[120px]">
+                      {hostname.replace('www.', '')}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="relative ml-2 pl-6">
+            <div className="absolute -left-[11px] top-0 bg-white text-slate-400">
+              {isSearching ? (
+                <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-5 h-5" />
+              )}
+            </div>
+            <span className="text-slate-700 text-sm">{isSearching ? "Lendo fontes..." : "Concluído"}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: { content: string, isStreaming?: boolean, onContentChange?: () => void, sources?: any[] }) => {
+  const wasStreaming = useRef(isStreaming);
+  const [displayedContent, setDisplayedContent] = useState(wasStreaming.current ? '' : content);
+
+  useEffect(() => {
+    if (!wasStreaming.current) {
+      setDisplayedContent(content);
+      if (onContentChange) onContentChange();
+      return;
+    }
+
+    if (displayedContent.length < content.length) {
+      const timeout = setTimeout(() => {
+        setDisplayedContent(prev => {
+          const diff = content.length - prev.length;
+          const charsToAdd = Math.max(2, Math.min(12, Math.ceil(diff / 2)));
+          return content.slice(0, prev.length + charsToAdd);
+        });
+      }, 5);
+      return () => clearTimeout(timeout);
+    }
+  }, [content, displayedContent]);
+
+  useEffect(() => {
+    if (onContentChange) {
+      onContentChange();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayedContent]);
+
+  return (
+    <ReactMarkdown 
+      remarkPlugins={[remarkGfm]} 
+      rehypePlugins={[rehypeRaw]}
+      components={{
+        h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
+        h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
+        h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900" {...props} />,
+        p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
+        ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-4" {...props} />,
+        ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-4" {...props} />,
+        li: ({node, ...props}) => <li className="mb-1" {...props} />,
+        a: ({node, href, children, ...props}) => {
+          return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" {...props}>{children}</a>;
+        },
+        strong: ({node, ...props}) => <strong className="font-bold text-slate-900" {...props} />,
+        em: ({node, ...props}) => <em className="italic" {...props} />,
+        mark: ({node, ...props}) => <mark className="bg-yellow-200 text-slate-900 px-1.5 py-0.5 rounded-md font-medium" {...props} />,
+        table: ({node, ...props}) => (
+          <div className="overflow-x-auto mb-4 rounded-lg border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200" {...props} />
+          </div>
+        ),
+        thead: ({node, ...props}) => <thead className="bg-slate-50" {...props} />,
+        tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200 bg-white" {...props} />,
+        tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+        th: ({node, ...props}) => <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider" {...props} />,
+        td: ({node, ...props}) => <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" {...props} />
+      }}
+    >
+      {displayedContent}
+    </ReactMarkdown>
+  );
+};
 
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [view, setView] = useState<'landing' | 'chat'>('landing');
+  const [view, setView] = useState<'landing' | 'chat' | 'benchmark'>('landing');
   const [messages, setMessages] = useState<{ 
     role: 'user' | 'ai', 
     content: string, 
@@ -50,13 +244,16 @@ export default function App() {
     searchImages?: string[];
     followUpQuestions?: string[];
     searchAnswer?: string;
+    searchQuery?: string;
+    isSearching?: boolean;
+    isClassifying?: boolean;
+    isStreaming?: boolean;
   }[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [chatMode, setChatMode] = useState<'Rápido' | 'Raciocínio' | 'Pro'>('Rápido');
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
   const [isImageToolActive, setIsImageToolActive] = useState(false);
-  const [isWebSearchActive, setIsWebSearchActive] = useState(false);
   const [selectedSources, setSelectedSources] = useState<{ title: string; url: string; content: string }[] | null>(null);
   const [selectedImageGallery, setSelectedImageGallery] = useState<{images: string[], currentIndex: number} | null>(null);
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
@@ -112,11 +309,11 @@ export default function App() {
     mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
   };
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (smooth = true) => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTo({
         top: scrollAreaRef.current.scrollHeight,
-        behavior: "smooth"
+        behavior: smooth ? "smooth" : "auto"
       });
     }
   };
@@ -250,7 +447,7 @@ export default function App() {
         });
       }
 
-      const data = await safeFetchJson('/api/chat', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -261,33 +458,98 @@ export default function App() {
             { role: "user", content: userMessage.images ? currentMsgContent : userMessage.content }
           ],
           hasImages: !!userMessage.images,
-          model: "llama-3.1-8b-instant",
-          useWebSearch: isWebSearchActive
+          model: "llama-3.1-8b-instant"
         }),
       });
 
-      let content = data.content;
-      
-      let artifactPrompt = null;
-      const artifactMatch = content.match(/<artifact>([\s\S]*?)<\/artifact>/);
-      if (artifactMatch) {
-        artifactPrompt = artifactMatch[1];
-        content = content.replace(artifactMatch[0], '').trim();
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Erro do servidor (${response.status})`);
+        }
+        throw new Error(`Erro de comunicação (${response.status})`);
       }
 
-      const newMessage = { 
-        role: 'ai' as const, 
-        content,
-        artifact: artifactPrompt ? { prompt: artifactPrompt, isLoading: true } : undefined,
-        sources: data.sources,
-        searchImages: data.images,
-        followUpQuestions: data.followUpQuestions,
-        searchAnswer: data.searchAnswer
-      };
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader");
+      const decoder = new TextDecoder();
+      
+      let aiMessage = { role: 'ai' as const, content: '', isStreaming: true };
+      setMessages(prev => [...prev, aiMessage]);
+      
+      let finalContent = "";
+      let artifactPrompt = null;
+      let aiMessageIndex = -1;
+      let buffer = "";
 
-      setMessages(prev => [...prev, newMessage]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || "";
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6);
+            if (dataStr.trim() === '[DONE]') continue;
+            try {
+              const data = JSON.parse(dataStr);
+              
+              if (data.type === 'chunk') {
+                finalContent += data.content;
+              }
+              
+              setMessages(prev => {
+                const newMsgs = [...prev];
+                if (aiMessageIndex === -1) {
+                  aiMessageIndex = newMsgs.length - 1;
+                }
+                const currentMsg = newMsgs[aiMessageIndex];
+                
+                if (data.type === 'classifier_start') {
+                  newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: true };
+                } else if (data.type === 'search_start') {
+                  newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: false, searchQuery: data.query, isSearching: true };
+                } else if (data.type === 'search_complete') {
+                  newMsgs[aiMessageIndex] = { 
+                    ...currentMsg, 
+                    isClassifying: false,
+                    isSearching: false,
+                    sources: data.sources,
+                    searchImages: data.images,
+                    followUpQuestions: data.followUpQuestions,
+                    searchAnswer: data.searchAnswer
+                  };
+                } else if (data.type === 'chunk') {
+                  newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: false, content: finalContent };
+                } else if (data.type === 'error') {
+                  throw new Error(data.error);
+                }
+                return newMsgs;
+              });
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
 
-      if (artifactPrompt) {
+      const artifactMatch = finalContent.match(/<artifact>([\s\S]*?)<\/artifact>/);
+      if (artifactMatch) {
+        artifactPrompt = artifactMatch[1];
+        finalContent = finalContent.replace(artifactMatch[0], '').trim();
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          newMsgs[aiMessageIndex] = { 
+            ...newMsgs[aiMessageIndex], 
+            content: finalContent,
+            artifact: { prompt: artifactPrompt, isLoading: true }
+          };
+          return newMsgs;
+        });
+        
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds timeout
@@ -303,20 +565,11 @@ export default function App() {
           
           setMessages(prev => {
             const newMessages = [...prev];
-            // Find the message we just added
-            let lastMsgIndex = -1;
-            for (let i = newMessages.length - 1; i >= 0; i--) {
-              const m = newMessages[i];
-              if (m === newMessage || (m.role === 'ai' && m.artifact?.prompt === artifactPrompt)) {
-                lastMsgIndex = i;
-                break;
-              }
-            }
-            if (lastMsgIndex !== -1) {
-              newMessages[lastMsgIndex] = {
-                ...newMessages[lastMsgIndex],
+            if (aiMessageIndex !== -1) {
+              newMessages[aiMessageIndex] = {
+                ...newMessages[aiMessageIndex],
                 artifact: {
-                  ...newMessages[lastMsgIndex].artifact!,
+                  ...newMessages[aiMessageIndex].artifact!,
                   content: artifactData.htmlContent?.replace(/```[a-z]*\n?/g, '').replace(/```/g, ''),
                   isLoading: false
                 }
@@ -329,19 +582,11 @@ export default function App() {
           const isTimeout = e.name === 'AbortError';
           setMessages(prev => {
             const newMessages = [...prev];
-            let lastMsgIndex = -1;
-            for (let i = newMessages.length - 1; i >= 0; i--) {
-              const m = newMessages[i];
-              if (m === newMessage || (m.role === 'ai' && m.artifact?.prompt === artifactPrompt)) {
-                lastMsgIndex = i;
-                break;
-              }
-            }
-            if (lastMsgIndex !== -1) {
-              newMessages[lastMsgIndex] = {
-                ...newMessages[lastMsgIndex],
+            if (aiMessageIndex !== -1) {
+              newMessages[aiMessageIndex] = {
+                ...newMessages[aiMessageIndex],
                 artifact: {
-                  ...newMessages[lastMsgIndex].artifact!,
+                  ...newMessages[aiMessageIndex].artifact!,
                   isLoading: false,
                   error: isTimeout ? "O tempo limite de geração foi excedido (60s). Tente novamente." : (e.message || true)
                 }
@@ -351,14 +596,26 @@ export default function App() {
           });
         }
       }
+      
+      setMessages(prev => {
+        const newMsgs = [...prev];
+        if (aiMessageIndex !== -1) {
+          newMsgs[aiMessageIndex] = { ...newMsgs[aiMessageIndex], isStreaming: false };
+        }
+        return newMsgs;
+      });
     } catch (error: any) {
       console.error("Chat Error:", error);
       setMessages(prev => [...prev, { role: 'ai' as const, content: error.message || "Desculpe, ocorreu um erro ao processar sua mensagem. Verifique se a chave da API Groq está configurada." }]);
     }
   };
 
+  if (view === 'benchmark') {
+    return <Benchmark onBack={() => setView('landing')} />;
+  }
+
   return (
-    <div className="h-screen w-full bg-white text-slate-900 font-sans overflow-hidden relative">
+    <div className="h-screen w-full bg-white text-slate-900 font-sans relative flex flex-col overflow-hidden">
       {/* Background Ambient Glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-100 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-green-100 rounded-full blur-[120px] pointer-events-none" />
@@ -371,6 +628,7 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.5 }}
+            className="flex-1 w-full flex flex-col overflow-y-auto"
           >
             {/* Navigation */}
             <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
@@ -451,7 +709,10 @@ export default function App() {
                       <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
                     </button>
                     
-                    <button className="bg-slate-50 border border-slate-200 px-10 py-4 rounded-2xl font-bold text-lg text-slate-400 cursor-not-allowed flex items-center gap-2">
+                    <button 
+                      onClick={() => setView('benchmark')}
+                      className="bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 px-10 py-4 rounded-2xl font-bold text-lg text-slate-700 flex items-center gap-2"
+                    >
                       <BarChart3 className="w-5 h-5" />
                       Benchmarks
                     </button>
@@ -542,7 +803,7 @@ export default function App() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="h-[100dvh] flex flex-col bg-white"
+            className="flex-1 w-full flex flex-col bg-white/90 backdrop-blur-md z-10 overflow-hidden"
           >
             {/* Chat Header */}
             <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-50 sticky top-0">
@@ -554,8 +815,8 @@ export default function App() {
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shadow-sm">
-                    <Bot className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 flex items-center justify-center overflow-hidden">
+                    <Sparkle className="w-8 h-8 text-slate-900 fill-slate-900" />
                   </div>
                   <div>
                     <h2 className="font-display font-bold text-lg leading-none text-slate-900">Milly AI 1</h2>
@@ -586,7 +847,7 @@ export default function App() {
             {/* Chat Messages Area */}
             <div 
               ref={scrollAreaRef}
-              className="flex-1 overflow-y-auto p-6 space-y-6 relative bg-white"
+              className="flex-1 overflow-y-auto p-6 space-y-6 relative bg-white scroll-smooth"
             >
               <div className="max-w-5xl mx-auto">
                 {messages.length === 0 ? (
@@ -606,12 +867,9 @@ export default function App() {
                         key={idx}
                         initial={{ opacity: 0, x: msg.role === 'ai' ? -20 : 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                        className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'justify-center w-full'}`}
                       >
-                        <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center ${msg.role === 'ai' ? 'bg-white shadow-sm' : 'bg-slate-200 border border-slate-300'}`}>
-                          {msg.role === 'ai' ? <Bot className="w-5 h-5 text-slate-700" /> : <User className="w-5 h-5 text-slate-500" />}
-                        </div>
-                        <div className={`${msg.role === 'ai' ? 'bg-white rounded-tl-none' : 'bg-slate-100 rounded-tr-none shadow-sm'} p-4 rounded-2xl max-w-[95%] w-full`}>
+                        <div className={`${msg.role === 'ai' ? 'bg-transparent max-w-3xl mx-auto w-full' : 'bg-slate-100 rounded-tr-none shadow-sm max-w-[85%] w-fit'} p-6 rounded-2xl`}>
                           {msg.images && (
                             <div className="flex flex-wrap gap-2 mb-3">
                               {msg.images.map((img, i) => (
@@ -626,6 +884,20 @@ export default function App() {
                           )}
                           {msg.role === 'ai' ? (
                             <div className="markdown-body text-sm leading-relaxed text-slate-800">
+                              {msg.isClassifying && (
+                                <div className="flex items-center gap-2 text-slate-400 text-sm mb-3">
+                                  <div className="flex gap-1">
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                  </div>
+                                  <span>Analisando pergunta...</span>
+                                </div>
+                              )}
+                              {(msg.isSearching || msg.searchQuery || (msg.sources && msg.sources.length > 0)) && (
+                                <SearchLog query={msg.searchQuery} sources={msg.sources} isSearching={msg.isSearching} />
+                              )}
+                              
                               {msg.searchImages && msg.searchImages.length > 0 && (
                                 <div className="flex gap-3 overflow-x-auto pb-4 mb-4 scrollbar-hide snap-x">
                                   {msg.searchImages.map((imgUrl, i) => {
@@ -657,74 +929,29 @@ export default function App() {
                                 </div>
                               )}
 
-                              <ReactMarkdown 
-                                remarkPlugins={[remarkGfm]} 
-                                rehypePlugins={[rehypeRaw]}
-                                components={{
-                                  h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
-                                  h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
-                                  h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900" {...props} />,
-                                  p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
-                                  ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-4" {...props} />,
-                                  ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-4" {...props} />,
-                                  li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                                  a: ({node, ...props}) => <a className="text-blue-600 hover:underline" {...props} />,
-                                  strong: ({node, ...props}) => <strong className="font-bold text-slate-900" {...props} />,
-                                  em: ({node, ...props}) => <em className="italic" {...props} />,
-                                  mark: ({node, ...props}) => <mark className="bg-yellow-200 text-slate-900 px-1.5 py-0.5 rounded-md font-medium" {...props} />,
-                                  table: ({node, ...props}) => (
-                                    <div className="overflow-x-auto mb-4 rounded-lg border border-slate-200">
-                                      <table className="min-w-full divide-y divide-slate-200" {...props} />
-                                    </div>
-                                  ),
-                                  thead: ({node, ...props}) => <thead className="bg-slate-50" {...props} />,
-                                  tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200 bg-white" {...props} />,
-                                  tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-                                  th: ({node, ...props}) => <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider" {...props} />,
-                                  td: ({node, ...props}) => <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" {...props} />
-                                }}
-                              >
-                                {msg.content}
-                              </ReactMarkdown>
+                              <TypewriterMarkdown 
+                                content={msg.content} 
+                                isStreaming={msg.isStreaming}
+                                onContentChange={() => scrollToBottom(false)}
+                                sources={msg.sources}
+                              />
                               
-                              {msg.sources && msg.sources.length > 0 && (
+                              {msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
                                 <div className="mt-6 flex flex-col gap-4 pt-4">
-                                  <div className="flex items-center gap-2">
-                                    <button 
-                                      onClick={() => setSelectedSources(msg.sources!)}
-                                      className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full text-sm font-medium transition-colors text-slate-700"
-                                    >
-                                      <div className="flex -space-x-2">
-                                        {msg.sources.slice(0, 3).map((s, i) => {
-                                          let hostname = "web";
-                                          try { hostname = new URL(s.url).hostname; } catch(e) {}
-                                          return (
-                                            <div key={i} className="w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
-                                              <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-3 h-3" onError={(e) => e.currentTarget.style.display = 'none'} />
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                      <span>{msg.sources.length} fontes</span>
-                                    </button>
-                                  </div>
-
-                                  {msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
-                                    <div className="mt-2">
-                                      <h4 className="text-sm font-bold text-slate-700 mb-2">Acompanhamentos</h4>
-                                      <div className="flex flex-col gap-2">
-                                        {msg.followUpQuestions.map((q, i) => (
-                                          <button 
-                                            key={i}
-                                            onClick={() => setInputValue(q)}
-                                            className="text-left text-sm text-slate-600 hover:text-blue-600 hover:underline flex items-start gap-2"
-                                          >
-                                            <span className="text-slate-400 mt-0.5">↳</span> {q}
-                                          </button>
-                                        ))}
-                                      </div>
+                                  <div className="mt-2">
+                                    <h4 className="text-sm font-bold text-slate-700 mb-2">Acompanhamentos</h4>
+                                    <div className="flex flex-col gap-2">
+                                      {msg.followUpQuestions.map((q, i) => (
+                                        <button 
+                                          key={i}
+                                          onClick={() => setInputValue(q)}
+                                          className="text-left text-sm text-slate-600 hover:text-blue-600 hover:underline flex items-start gap-2"
+                                        >
+                                          <span className="text-slate-400 mt-0.5">↳</span> {q}
+                                        </button>
+                                      ))}
                                     </div>
-                                  )}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -735,12 +962,12 @@ export default function App() {
                           )}
                           
                           {msg.artifact && (
-                            <div className="mt-6 border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 shadow-sm">
-                              <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center gap-2 text-sm font-medium text-slate-700">
+                            <div className="mt-6 border border-slate-200 rounded-2xl bg-slate-50 shadow-sm flex flex-col max-h-[80vh]">
+                              <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center gap-2 text-sm font-medium text-slate-700 shrink-0">
                                 <Sparkles className="w-4 h-4 text-blue-600" />
                                 Artifact Interativo
                               </div>
-                              <div className="p-6 overflow-x-auto">
+                              <div className="p-6 overflow-y-auto scroll-smooth flex-1">
                                 {msg.artifact.isLoading ? (
                                   <div className="flex flex-col items-center justify-center py-8 text-slate-500 gap-2">
                                     <div className="flex items-center gap-3">
@@ -849,7 +1076,6 @@ export default function App() {
                             <button 
                               onClick={() => {
                                 setIsImageToolActive(true);
-                                setIsWebSearchActive(false);
                               }}
                               className="mt-3 w-full py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-blue-600 text-xs font-bold transition-colors flex items-center justify-center gap-2"
                             >
@@ -866,7 +1092,6 @@ export default function App() {
                                 onClick={() => {
                                   setMessages([]);
                                   setIsImageToolActive(true);
-                                  setIsWebSearchActive(false);
                                 }}
                                 className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 text-xs font-medium transition-colors flex items-center justify-center gap-2"
                               >
@@ -883,12 +1108,9 @@ export default function App() {
                       <motion.div 
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="flex gap-4"
+                        className="flex gap-4 justify-center w-full"
                       >
-                        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border bg-blue-50 border-blue-200">
-                          <Bot className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div className="bg-white rounded-tl-none p-4 rounded-2xl max-w-[80%] flex items-center gap-3">
+                        <div className="bg-white p-6 rounded-2xl max-w-3xl mx-auto w-full flex items-center gap-3 shadow-sm">
                           <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                           <span className="text-sm text-blue-600 font-medium">Gerando imagem...</span>
                         </div>
@@ -921,32 +1143,18 @@ export default function App() {
 
                 <div className="bg-slate-50 rounded-[32px] border border-slate-200 p-2 shadow-sm focus-within:border-slate-300 focus-within:shadow-md transition-all">
                   {/* Tool Pill Row */}
-                  {(isImageToolActive || isWebSearchActive) && (
+                  {isImageToolActive && (
                     <div className="px-4 pt-2 flex items-center gap-2 flex-wrap">
-                      {isImageToolActive && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-blue-600">
-                          <Sparkles className="w-4 h-4" />
-                          <span className="text-xs font-medium">Criar imagem</span>
-                          <button 
-                            onClick={() => setIsImageToolActive(false)}
-                            className="hover:text-blue-800 transition-colors ml-1"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                      {isWebSearchActive && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-green-600">
-                          <Globe className="w-4 h-4" />
-                          <span className="text-xs font-medium">Busca na web</span>
-                          <button 
-                            onClick={() => setIsWebSearchActive(false)}
-                            className="hover:text-green-800 transition-colors ml-1"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-blue-600">
+                        <Sparkles className="w-4 h-4" />
+                        <span className="text-xs font-medium">Criar imagem</span>
+                        <button 
+                          onClick={() => setIsImageToolActive(false)}
+                          className="hover:text-blue-800 transition-colors ml-1"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   )}
                   
@@ -1002,25 +1210,12 @@ export default function App() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setIsImageToolActive(!isImageToolActive);
-                                    if (!isImageToolActive) setIsWebSearchActive(false);
                                     setIsToolsMenuOpen(false);
                                   }}
                                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${isImageToolActive ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-700'}`}
                                 >
                                   <Sparkles className="w-4 h-4" />
                                   <span className="text-sm font-medium">Gerar imagens</span>
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsWebSearchActive(!isWebSearchActive);
-                                    if (!isWebSearchActive) setIsImageToolActive(false);
-                                    setIsToolsMenuOpen(false);
-                                  }}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors mt-1 ${isWebSearchActive ? 'bg-green-50 text-green-600' : 'hover:bg-slate-50 text-slate-700'}`}
-                                >
-                                  <Globe className="w-4 h-4" />
-                                  <span className="text-sm font-medium">Busca na web</span>
                                 </button>
                               </div>
                             </motion.div>
