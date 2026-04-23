@@ -35,6 +35,41 @@ function getAiImage() {
 }
 
 // API Routes
+let lastImageService = "Nenhum";
+
+// ... [existing app setup] ...
+
+app.get('/api/unsplash', async (req, res) => {
+  try {
+    const q = req.query.q || 'abstract';
+    const apiKey = process.env.VITE_UNSPLASH_API_KEY || process.env.UNSPLASH_API_KEY;
+
+    if (!apiKey) {
+      lastImageService = "Pollinations (Fallback)";
+      return res.redirect(`https://image.pollinations.ai/prompt/${encodeURIComponent(q as string)}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 10000)}`);
+    }
+
+    const unsplashRes = await fetch(`https://api.unsplash.com/photos/random?query=${encodeURIComponent(q as string)}&client_id=${apiKey}`);
+    if (unsplashRes.ok) {
+      const data = await unsplashRes.json();
+      if (data && data.urls && data.urls.regular) {
+        lastImageService = "Unsplash";
+        return res.redirect(data.urls.regular);
+      }
+    }
+    
+    lastImageService = "Pollinations (Fallback - Unsplash Fail)";
+    res.redirect(`https://image.pollinations.ai/prompt/${encodeURIComponent(q as string)}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 10000)}`);
+  } catch (e) {
+    lastImageService = "Pollinations (Fallback - Internal Error)";
+    res.redirect(`https://image.pollinations.ai/prompt/${encodeURIComponent(req.query.q as string || 'abstract')}?width=800&height=600&nologo=true`);
+  }
+});
+
+app.get('/api/image-service', (req, res) => {
+  res.json({ service: lastImageService });
+});
+
 app.post("/api/chat", async (req, res) => {
   try {
     const { messages, model, hasImages, useWebSearch } = req.body;
@@ -102,6 +137,8 @@ A filosofia tem vários ramos.
 
     let shouldSearch = false;
 
+    let isEditorVisual = false;
+    
     if (isUserMessage && userText && supportsTools) {
       res.write(`data: ${JSON.stringify({ type: 'classifier_start' })}\n\n`);
 
@@ -114,28 +151,45 @@ A filosofia tem vários ramos.
           messages: [
             {
               role: "system",
-              content: `Você é um classificador de intenções. Sua tarefa é analisar a pergunta do usuário e responder APENAS com as palavras permitidas.
+              content: `Você é um classificador de intenções extremamente inteligente. Sua tarefa é analisar a pergunta do usuário e responder APENAS com as palavras permitidas.
+
 Vocabulário permitido:
-- "SIM": se a pergunta requer informações atuais, em tempo real ou que possam ter mudado (notícias, preços, eventos atuais).
-- "NÃO": se a pergunta pode ser respondida com conhecimento geral, conceitos, explicações, etc.
+- "SIM": Faça busca na web! Use "SIM" agressivamente. Se a pergunta depender de dados exatos, faturamento de empresas, números, atualizações, notícias, fatos do mundo real, comparações baseadas em dados ou se for necessário preencher um GRÁFICO, TIMELINE ou GERAL com COTAÇÕES reais, dados atuais ou NÚMEROS reais... RESPONDA "SIM". A pesquisa fará com que o artifact entregue resultados precisos de hoje.
+- "NÃO": APENAS se a pergunta for puramente filosófica, teórica de base (fórmulas matemáticas), casual (Oi, tudo bem?) ou criativa/ficção, onde os dados de conhecimento geral da IA (treinamento até o momento atual) bastam.
 - "CLIMA: [Nome da Cidade]": se o usuário estiver perguntando sobre o clima ou previsão do tempo de uma cidade específica.
-- "GERAL": se o usuário pedir um resumo complexo, mapa mental, linha do tempo, tabela comparativa, ou algo que se beneficie MUITO de uma visualização estruturada e colorida (Artifact interativo).
-- "GRÁFICO_LINHAS": se o usuário pedir um gráfico de linhas.
-- "GRÁFICO_VERTICAL": se o usuário pedir um gráfico de barras verticais.
-- "GRÁFICO_PIZZA": se o usuário pedir um gráfico de pizza.
-- "GRÁFICO_HORIZONTAL": se o usuário pedir um gráfico de barras horizontais.
-- "GRÁFICO_ROSCA": se o usuário pedir um gráfico de rosca (doughnut).
+- "MAPA: [Local corrigido para busca]": se o usuário pedir para ver um local no mapa, ver onde fica algo, localizar museus, restaurantes, cidades, ou passeios. VOCÊ DEVE corrigir e melhorar o termo para que a busca em serviços de mapas funcione bem (ex: "mapa da paulista" -> MAPA: Avenida Paulista, São Paulo).
+- "MUSICA: [Termo exato de busca limpo]": se o usuário estiver perguntando sobre uma música específica, quem canta, ou pedir para ouvir/tocar uma música e seu preview. VOCÊ DEVE extrair APENAS o nome da música e, se mencionado, o artista. NÃO inclua palavras como "música", "ouvir", "toque". Ex: "toque a música ilusão de ótica" -> MUSICA: Ilusão de Ótica. Isso garante que a API da Deezer retorne resultados exatos.
+- "TIMELINE": se o usuário pedir a história de algo, biografia de uma pessoa, evolução de uma empresa ou uma linha do tempo de eventos chronológicos.
+- "EDITOR": se o usuário pedir um trecho de HTML, CSS, Javascript de UI, uma interface, ou falar para criar um design front-end no código com live editor.
+- "MERMAID": se o usuário pedir para visualizar um processo, fluxograma, árvore de decisão, jornada do usuário, diagrama de sequência ou mapa mental em formato de gráfico. Use para fluxo passo-a-passo.
+- "GERAL": USE PARA EDUCAÇÃO, ESTUDO E ENTENDIMENTO. Se o usuário pedir um resumo de estudos, não entender uma matéria, pedir uma "analogia visual", ou explicação de um sistema complexo (que não seja um diagrama/fluxo).
+- "GRÁFICO_LINHAS": se o usuário pedir um gráfico ou for ideal mostrar evolução no tempo/tendências.
+- "GRÁFICO_VERTICAL": se o usuário pedir um gráfico ou for ideal comparar categorias (barras em pé).
+- "GRÁFICO_PIZZA": se o usuário pedir um gráfico ou for ideal mostrar divisões de um todo.
+- "GRÁFICO_HORIZONTAL": se o usuário pedir um gráfico ou for ideal comparar itens (barras deitadas).
+- "GRÁFICO_ROSCA": se o usuário pedir um gráfico ou for ideal mostrar divisões (doughnut).
 
-Regras de Combinação:
-- Você pode combinar "SIM" ou "NÃO" com "CLIMA", "GERAL" ou "GRÁFICO_[TIPO]" separando por vírgula.
-- NUNCA combine "CLIMA", "GERAL" e "GRÁFICO_[TIPO]" na mesma resposta. Escolha apenas um deles (ou nenhum).
+PRIORIDADES E REGRAS:
+1. Gráficos (GRÁFICO_[TIPO]) devem ser usados para DADOS.
+2. Mapas (MAPA: [Local]) para LOCALIZAÇÃO GEOGRÁFICA.
+3. Músicas (MUSICA: [Nome]) para ÁUDIO/ARTISTAS/MÚSICAS.
+4. Códigos Visuais (EDITOR) para pedidos de layout, HTML, CSS, front-end visual.
+5. Linhas do Tempo (TIMELINE) para HISTÓRIA e CRONOLOGIAS (anos, meses, biografias).
+6. Fluxogramas (MERMAID) para processos corporativos ou algoritmos.
+7. O Artifact (GERAL) deve ser a ÚLTIMA OPÇÃO visual, destinado apenas a infográficos puramente didáticos abundantes em texto.
+8. Se gerar um artefato com base no mundo atual, acople com o "SIM". Ex: "História da Apple" -> "SIM, TIMELINE".
+9. NUNCA misture dois tipos de visuais maiores.
 
-Exemplos:
-"Qual o clima em Campinas?" -> NÃO, CLIMA: Campinas
-"Crie um mapa mental sobre a Segunda Guerra Mundial" -> NÃO, GERAL
-"Quais as últimas notícias sobre IA? Faça um resumo visual" -> SIM, GERAL
-"Me mostre um gráfico de pizza com os maiores países do mundo" -> NÃO, GRÁFICO_PIZZA
-"Notícias de hoje e faça um gráfico de linhas das ações da Apple" -> SIM, GRÁFICO_LINHAS
+Exemplos de raciocínio:
+"Quem canta a música houdini?" -> NÃO, MUSICA: Houdini - Dua Lipa
+"Faz um botão de login vermelho" -> NÃO, EDITOR
+"Mostra a história do Brasil" -> SIM, TIMELINE
+"Onde fica o coliseu?" -> NÃO, MAPA: Coliseu, Roma
+"Como é o funil de vendas?" -> NÃO, MERMAID
+"Faz um mapa mental sobre biologia" -> NÃO, MERMAID
+"Comparativo de PIB Brasil vs EUA" -> SIM, GRÁFICO_VERTICAL
+"Notícias de IA hoje e um resumo disso" -> SIM, GERAL
+"Como tá o tempo no Rio?" -> NÃO, CLIMA: Rio de Janeiro
 
 IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
             },
@@ -159,9 +213,25 @@ IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
           res.write(`data: ${JSON.stringify({ type: 'weather_start', city })}\n\n`);
         }
 
+        const mapaMatch = answer.match(/MAPA:\s*([^,]+)/i);
+        if (mapaMatch) {
+          const location = mapaMatch[1].trim();
+          res.write(`data: ${JSON.stringify({ type: 'map_start', location })}\n\n`);
+        }
+
+        const musicaMatch = answer.match(/MUSICA:\s*([^,]+)/i);
+        if (musicaMatch) {
+          const query = musicaMatch[1].trim();
+          res.write(`data: ${JSON.stringify({ type: 'music_start', query })}\n\n`);
+        }
+        
+        const mermaidMatch = answer.match(/MERMAID/i);
+        const timelineMatch = answer.match(/TIMELINE/i);
+        const editorMatch = answer.match(/EDITOR/i);
+
         const graficoMatch = answer.match(/GRÁFICO_([A-Z]+)/i);
         
-        if (graficoMatch && !climaMatch) {
+        if (graficoMatch && !climaMatch && !mapaMatch && !mermaidMatch && !timelineMatch && !editorMatch) {
           const tipo = graficoMatch[1].toUpperCase();
           const templates: Record<string, string> = {
             LINHAS: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 600px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="lineChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('lineChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'line',\n            data: {\n                labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'], // Eixo X (Editável)\n                datasets: [{\n                    label: 'Vendas da Semana (Exemplo)', // Nome da série (Editável)\n                    data: [12, 19, 15, 25, 22, 30, 28], // Valores (Editável)\n                    borderColor: '#3b82f6',\n                    backgroundColor: 'rgba(59, 130, 246, 0.1)',\n                    fill: true,\n                    tension: 0.4\n                }]\n            },\n            options: { responsive: true, plugins: { legend: { display: true } } }\n        });\n    </script>\n</body>\n</html>`,
@@ -171,9 +241,72 @@ IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
             ROSCA: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 400px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="doughnutChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('doughnutChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'doughnut',\n            data: {\n                labels: ['Concluído', 'Em Andamento', 'Pendente'],\n                datasets: [{\n                    data: [70, 20, 10],\n                    backgroundColor: ['#22c55e', '#3b82f6', '#e2e8f0'],\n                    borderWidth: 0,\n                    hoverOffset: 10\n                }]\n            },\n            options: { cutout: '70%', plugins: { legend: { position: 'bottom' } } }\n        });\n    </script>\n</body>\n</html>`
           };
           const template = templates[tipo] || templates.LINHAS;
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM GRÁFICO DO TIPO ${tipo}. É OBRIGATÓRIO incluir o gráfico em qualquer lugar da sua resposta (no início, no meio ou no final) usando um bloco de código markdown com a linguagem "html_chart". Você DEVE usar o seguinte template HTML base, mas alterando APENAS os dados (labels e data) e os textos para refletir a sua resposta. NÃO altere a estrutura do HTML ou CSS.\n\nTemplate a ser usado dentro do bloco \`\`\`html_chart\n${template}\n\`\`\``;
-        } else if (answer.includes("GERAL") && !climaMatch) {
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM ARTIFACT (GERAL) para esta resposta. É OBRIGATÓRIO incluir a tag <artifact> no final da sua resposta com o prompt para o gerador visual.`;
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM GRÁFICO DO TIPO ${tipo}. É OBRIGATÓRIO incluir o gráfico em qualquer lugar da sua resposta usando um bloco de código markdown com a linguagem "html_chart". Você DEVE usar o template HTML base abaixo, mas alterando APENAS os dados (labels e data) e os textos para refletir a sua resposta. USE OS DADOS DA BUSCA NA WEB (se existirem nos resultados de busca abaixo) para colocar valores REAIS E PRECISOS no gráfico.\n\nTemplate a ser usado dentro do bloco \`\`\`html_chart\n${template}\n\`\`\``;
+        } else if (timelineMatch && !climaMatch && !mapaMatch && !mermaidMatch && !editorMatch) {
+          const timelineTemplate = `<!DOCTYPE html>\n<html lang="pt-br">\n<head>\n    <meta charset="UTF-8">\n    <style>\n        body { margin: 0; padding: 20px 0; font-family: 'Inter', sans-serif; background: transparent; }\n        .timeline { position: relative; max-width: 800px; margin: 0 auto; }\n        .timeline::after { content: ''; position: absolute; width: 4px; background: #e2e8f0; top: 0; bottom: 0; left: 50%; margin-left: -2px; border-radius: 2px; }\n        .container { padding: 10px 40px; position: relative; background-color: inherit; width: 50%; box-sizing: border-box; }\n        .left { left: 0; }\n        .right { left: 50%; }\n        .container::after { content: ''; position: absolute; width: 16px; height: 16px; right: -10px; background-color: white; border: 4px solid #3b82f6; top: 15px; border-radius: 50%; z-index: 1; }\n        .right::after { left: -10px; }\n        .content { padding: 20px; background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; position: relative; }\n        .date { color: #3b82f6; font-weight: bold; font-size: 14px; margin-bottom: 8px; }\n        .title { font-size: 18px; font-weight: bold; color: #0f172a; margin-bottom: 8px; margin-top: 0; }\n        .desc { color: #475569; font-size: 14px; line-height: 1.5; margin: 0; }\n        .img-container { width: 100%; height: 160px; border-radius: 8px; overflow: hidden; margin-top: 12px; display: none; background: #f1f5f9; }\n        .img-container img { width: 100%; height: 100%; object-fit: cover; }\n        @media screen and (max-width: 600px) {\n            .timeline::after { left: 31px; }\n            .container { width: 100%; padding-left: 70px; padding-right: 25px; }\n            .container::after { left: 21px; }\n            .right { left: 0%; }\n        }\n    </style>\n</head>\n<body>\n    <div class="timeline" id="timeline">\n        <!-- SUBSTITUA ESTE CONTEÚDO PELOS SEUS EVENTOS (ALTERNE ENTRE class="container left" E class="container right") -->\n        <div class="container left">\n            <!-- \`data-wiki\` SERVE PARA O ARTIFACT BUSCAR A FOTO NA WIKIPEDIA AUTOMATICAMENTE. COLOQUE O NOME MAIS FAMOSO POSSÍVEL DAQUELE ITEM. -->\n            <div class="content" data-wiki="Steve Jobs">\n                <div class="date">1976</div>\n                <h2 class="title">Fundação da Apple</h2>\n                <p class="desc">Steve Jobs e Steve Wozniak fundam a Apple Computer Inc.</p>\n            </div>\n        </div>\n    </div>\n    <script>\n        const observer = new ResizeObserver(() => {\n            window.parent.postMessage({ type: 'resize_timeline', id: '__UUID__', height: document.documentElement.scrollHeight }, '*');\n        });\n        observer.observe(document.body);\n        document.querySelectorAll('.content').forEach(async (el) => {\n            const wikiQuery = el.getAttribute('data-wiki');\n            if(wikiQuery) {\n                try {\n                    const searchRes = await fetch(\`https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=\${encodeURIComponent(wikiQuery)}&utf8=&format=json&origin=*\`);\n                    const searchData = await searchRes.json();\n                    if(searchData.query.search.length > 0) {\n                        const pageTitle = searchData.query.search[0].title;\n                        const summaryRes = await fetch(\`https://pt.wikipedia.org/api/rest_v1/page/summary/\${encodeURIComponent(pageTitle.replace(/ /g, "_"))}\`);\n                        const summaryData = await summaryRes.json();\n                        if(summaryData.thumbnail) {\n                            const imgDiv = document.createElement('div');\n                            imgDiv.className = 'img-container';\n                            imgDiv.style.display = 'block';\n                            imgDiv.innerHTML = \`<img src="\${summaryData.thumbnail.source}" alt="\${wikiQuery}">\`;\n                            el.appendChild(imgDiv);\n                        }\n                    }\n                } catch (e) { console.error("Erro wiki:", e); }\n            }\n        });\n    </script>\n</body>\n</html>`;
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UMA LINHA DO TEMPO (TIMELINE). É OBRIGATÓRIO incluir a timeline em sua resposta usando um bloco de código markdown com a linguagem "html_timeline". Você DEVE usar o template HTML base abaixo e preencher o corpo com as <div class="container...">. Lembre-se de definir um bom atributo \`data-wiki="..."\` no elemento \`.content\` para que fotos reais da web sejam carregadas no card.\n\nTemplate a ser usado dentro do bloco \`\`\`html_timeline\n${timelineTemplate}\n\`\`\``;
+        } else if (editorMatch && !climaMatch && !mapaMatch && !mermaidMatch && !timelineMatch) {
+          isEditorVisual = true;
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA EXTREMA (EDITOR FRONT-END) - PENALIDADE MÁXIMA SE VIOLADA:
+O usuário quer um código de UI/Interface completo e funcional.
+VOCÊ NÃO PODE, JAMAIS, SOB NENHUMA HIPÓTESE:
+1. Criar múltiplos blocos markdown (ex: \`\`\`css, \`\`\`javascript).
+2. Deixar partes do código em texto solto.
+3. Explicar o código passo a passo separando a estrutura.
+
+SUA ÚNICA SAÍDA VÁLIDA: O SEU CÓDIGO INTEIRO (HTML, CSS ESTILOS E JAVASCRIPT) DEVE SER ESCRITO JUNTO EM UM ÚNICO ARQUIVO USANDO A SINTAXE DE MARCAÇÃO \`\`\`html_editor. 
+Escreva TODO o código CSS *dentro* da tag <style> no <head>, e TODO o código JavaScript *dentro* da tag <script> no final do <body>.
+Use APENAS o bloco \`\`\`html_editor para todo o projeto!! Se você criar blocos de \`\`\`css separados, O SISTEMA VAI EXPLODIR E VOCÊ SERÁ PENALIZADO MÁXIMAMENTE.
+
+FORMATO OBRIGATÓRIO (NÃO DESVIE DESTE MOLDE):
+\`\`\`html_editor
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* NUNCA ESCREVA CSS GENÉRICO AQUI! USE CLASSES TAILWIND NO HTML */
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    /* Escreva aqui apenas keyframes complexos ou ::-webkit-scrollbar se precisar */
+  </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-blue-200">
+  <!-- SEU HTML AQUI DENTRO -->
+  <!-- OBRIGATÓRIO: USE TAILWIND. Faça layouts complexos (Grids, Bento boxes, Cards com blur, Textos com gradiente). NUNCA HTML PURO E FEIO! -->
+
+  <script>
+    // Inicializador de ícones Lucide (obrigatório se usar ícones)
+    lucide.createIcons();
+    // SEU JAVASCRIPT AQUI DENTRO
+  </script>
+</body>
+</html>
+\`\`\`
+
+- Para gerar / usar imagens: Use APENAS a URL \`/api/unsplash?q=termo_em_ingles\` em suas tags src ou background. Ex: <img src="/api/unsplash?q=luxury+shirt" class="...">. NUNCA USE source.unsplash.com!
+- Se não seguir essa estrutura exata de arquivo único, você falhará no teste.
+
+### REGRAS PROFISSIONAIS DE DESIGN E ESTRUTURA:
+Você é um designer sênior da Apple/Vercel/Stripe. Faça os sites ABSURDAMENTE LINDOS.
+
+REGRAS OBRIGATÓRIAS DE DESIGN:
+1. USE TAILWIND CSS PARA ABSOLUTAMENTE TUDO! (ex: flex flex-col md:flex-row items-center justify-between p-8 bg-white shadow-xl rounded-2xl).
+2. ZERO EMOJIS - Use APENAS a biblioteca Lucide (ex: <i data-lucide="shopping-cart"></i>).
+3. ESPAÇAMENTO E TIPOGRAFIA DE LUXO: Use Gaps grandes (gap-8, gap-12), paddings maciços em seções (py-20, px-6), e tipografia elegante (text-5xl font-extrabold tracking-tight).
+4. OBRIGATÓRIO TER IMAGENS DE ALTA QUALIDADE: Não deixe o site vazio de mídia.
+5. DESTAQUE VISUAL: Use gradientes (bg-gradient-to-r), bordas translúcidas (border border-white/20), efeito de vidro (backdrop-blur-md bg-white/30).
+6. ANIMAÇÕES: transition-all duration-300 hover:scale-105 hover:-translate-y-1 etc.
+7. CRIE PELO MENOS 3 SEÇÕES COMPLETAS NA PÁGINA (Hero com Call-to-action gigante, Seção de Funcionalidades/Produtos em Grid/Bento Box, e Footer rico).
+8. NÃO FAÇA HTML FEIO/BRUTO! Faça uma interface deslumbrante de arrancar suspiros.`;
+        } else if (mermaidMatch && !climaMatch && !mapaMatch && !timelineMatch && !editorMatch) {
+          const mermaidTemplate = `<!DOCTYPE html>\n<html>\n<head>\n    <script type="module">\n        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';\n        mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#f1f5f9', primaryTextColor: '#0f172a', primaryBorderColor: '#cbd5e1', lineColor: '#334155', secondaryColor: '#e2e8f0', tertiaryColor: '#fff', fontSize: '14px', fontFamily: 'Inter, sans-serif' } });\n        const observer = new ResizeObserver(entries => {\n            for (let entry of entries) {\n                window.parent.postMessage({ type: 'resize_mermaid', id: '__UUID__', height: document.documentElement.scrollHeight }, '*');\n            }\n        });\n        window.addEventListener('load', () => setTimeout(() => observer.observe(document.documentElement), 100));\n    </script>\n    <style>body { margin:0; padding:24px; font-family:'Inter',sans-serif; background:#fff; display:flex; justify-content:center; } .mermaid { width:100%; max-width:800px; overflow:visible; display:block; text-align:center; }</style>\n</head>\n<body>\n    <div class="mermaid">\n        %% substitua com seu código mermaid abaixo\n        graph TD\n        A[Base] --> B[Processo]\n    </div>\n</body>\n</html>`;
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM DIAGRAMA MERMAID (fluxograma/sequência). É OBRIGATÓRIO incluir o diagrama em qualquer lugar da sua resposta (de preferência após a introdução) usando um bloco de código markdown com a linguagem "html_mermaid". Você DEVE usar o template HTML base abaixo, mas substituindo o código na div class="mermaid" pela sua própria sintaxe Mermaid.js estruturando o assunto pedido.\n\nTemplate a ser usado dentro do bloco \`\`\`html_mermaid\n${mermaidTemplate}\n\`\`\``;
+        } else if (answer.includes("GERAL") && !climaMatch && !mapaMatch && !mermaidMatch && !timelineMatch && !editorMatch) {
+          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM ARTIFACT (GERAL). O objetivo deste artefato explícito é EDUCAÇÃO, RESUMO DIDÁTICO ou COMPREENSÃO VISUAL. Entregue um mapa mental, infográfico ou resumo esquemático estruturado usando as DICAS DA WEB (se existirem na busca) para que os dados ensinados sejam super atualizados. É OBRIGATÓRIO incluir a tag <artifact> no final da sua resposta com o prompt para o gerador visual.`;
         } else {
           currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ NÃO DEVE GERAR UM ARTIFACT para esta resposta. É PROIBIDO usar a tag <artifact> ou blocos de código html_chart nesta resposta. Apenas responda em texto.`;
         }
@@ -239,11 +372,20 @@ IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
       }
     }
 
+    if (isEditorVisual) {
+      currentMessages.push({
+        role: "system",
+        content: "LEMBRETE OBRIGATÓRIO E FINAL (CRÍTICO ANTES DE GERAR SEU OUTPUT): ENTREGUE ABSOLUTAMENTE TUDOOO O CÓDIGO INTEIRO (HTML E CSS E JS) JUNTO, EMBUTIDO NUM ARQUIVO ÚNICO DO TIPO DENTRO DE ```html_editor. É SEVERAMENTE PROIBIDO sob qualquer circunstância escrever e gerar blocos soltos/separados apenas para css ou javascript. Use: <style> seu css... </style> no head!"
+      });
+    }
+
     // No tool calls, just stream the response
     const stream = await groqClient.chat.completions.create({
       messages: currentMessages,
       model: selectedModel,
-      stream: true
+      stream: true,
+      max_tokens: 3000,
+      temperature: 0.2
     });
 
     for await (const chunk of stream) {
@@ -394,6 +536,31 @@ REGRAS TÉCNICAS:
   } catch (error: any) {
     console.error("Artifact Gen Fatal Error:", error);
     res.status(500).json({ error: error.message || "Internal Server Error" });
+  }
+});
+
+app.get('/api/unsplash', async (req, res) => {
+  try {
+    const q = req.query.q || 'abstract';
+    const apiKey = process.env.VITE_UNSPLASH_API_KEY || process.env.UNSPLASH_API_KEY;
+
+    if (!apiKey) {
+      // Fallback if no key is provided
+      return res.redirect(`https://image.pollinations.ai/prompt/${encodeURIComponent(q as string)}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 10000)}`);
+    }
+
+    const unsplashRes = await fetch(`https://api.unsplash.com/photos/random?query=${encodeURIComponent(q as string)}&client_id=${apiKey}`);
+    if (unsplashRes.ok) {
+      const data = await unsplashRes.json();
+      if (data && data.urls && data.urls.regular) {
+        return res.redirect(data.urls.regular);
+      }
+    }
+    
+    // Fallback if Unsplash fails (e.g., rate limit)
+    res.redirect(`https://image.pollinations.ai/prompt/${encodeURIComponent(q as string)}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 10000)}`);
+  } catch (e) {
+    res.redirect(`https://image.pollinations.ai/prompt/${encodeURIComponent(req.query.q as string || 'abstract')}?width=800&height=600&nologo=true`);
   }
 });
 

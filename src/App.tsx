@@ -4,10 +4,12 @@
  */
 
 import { motion, AnimatePresence } from "motion/react";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, createContext, useContext } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Benchmark from "./components/Benchmark";
 import { 
   Sparkles, 
@@ -159,6 +161,120 @@ const SearchLog = ({ query, sources, isSearching }: { query?: string, sources?: 
   );
 };
 
+const MermaidIframe = ({ srcDoc }: { srcDoc: string }) => {
+  const localId = React.useId();
+  const idValue = React.useMemo(() => localId.replace(/:/g, ''), [localId]);
+  const [height, setHeight] = useState(200);
+  const injectedSrcDoc = srcDoc.replace(/__UUID__/g, idValue);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'resize_mermaid' && e.data.id === idValue) {
+        setHeight(Math.max(150, e.data.height + 20));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [idValue]);
+
+  return (
+    <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white transition-all duration-300">
+      <iframe 
+        srcDoc={injectedSrcDoc} 
+        className="w-full border-0 transition-all duration-300"
+        style={{ height: `${height}px` }}
+        sandbox="allow-scripts allow-same-origin"
+      />
+    </div>
+  );
+};
+
+const StreamingContext = createContext<boolean | undefined>(false);
+
+const MemoizedMarkdownComponents = {
+  h1: ({node, ...props}: any) => <h1 className="text-2xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
+  h2: ({node, ...props}: any) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
+  h3: ({node, ...props}: any) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900" {...props} />,
+  p: ({node, ...props}: any) => <p className="mb-4 last:mb-0" {...props} />,
+  ul: ({node, ...props}: any) => <ul className="list-disc pl-4 mb-4" {...props} />,
+  ol: ({node, ...props}: any) => <ol className="list-decimal pl-4 mb-4" {...props} />,
+  li: ({node, ...props}: any) => <li className="mb-1" {...props} />,
+  code: ({node, inline, className, children, ...props}: any) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const isStreaming = useContext(StreamingContext);
+    
+    if (!inline && match && match[1] === 'html_chart') {
+      return (
+        <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white">
+          <iframe 
+            srcDoc={String(children).replace(/\n$/, '')} 
+            className="w-full h-[450px] border-0"
+            sandbox="allow-scripts"
+          />
+        </div>
+      );
+    } else if (!inline && match && match[1] === 'html_mermaid') {
+      return <MermaidIframe srcDoc={String(children).replace(/\n$/, '')} />;
+    } else if (!inline && match && match[1] === 'html_timeline') {
+      return <TimelineIframe srcDoc={String(children).replace(/\n$/, '')} />;
+    } else if (!inline && match && (match[1] === 'html_editor' || match[1] === 'html' || match[1] === 'css' || match[1] === 'javascript' || match[1] === 'js')) {
+      let codeStr = String(children).replace(/\n$/, '');
+      if (match[1] === 'css' && !codeStr.includes('<style')) {
+        codeStr = `<!DOCTYPE html>\n<html>\n<head>\n<!-- OVERRIDE DE SEGURANÇA: CSS DETECTADO -->\n<style>\n${codeStr}\n</style>\n</head>\n<body>\n</body>\n</html>`;
+      } else if ((match[1] === 'javascript' || match[1] === 'js') && !codeStr.includes('<script')) {
+        codeStr = `<!DOCTYPE html>\n<html>\n<body>\n<!-- OVERRIDE DE SEGURANÇA: JS DETECTADO -->\n<script>\n${codeStr}\n</script>\n</body>\n</html>`;
+      }
+      return <LiveEditorCard initialCode={codeStr} isStreaming={isStreaming} />;
+    }
+
+    if (!inline && match) {
+      return (
+        <div className="relative group my-6 overflow-hidden rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
+            <span className="text-xs font-medium text-slate-500 uppercase">{match[1]}</span>
+            <button 
+              onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+              title="Copiar código"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
+          <SyntaxHighlighter
+            language={match[1]}
+            style={vscDarkPlus}
+            customStyle={{ margin: 0, borderRadius: 0, padding: '16px', fontSize: '13px' }}
+          >
+            {String(children).replace(/\n$/, '')}
+          </SyntaxHighlighter>
+        </div>
+      );
+    }
+
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
+  a: ({node, href, children, ...props}: any) => {
+    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" {...props}>{children}</a>;
+  },
+  strong: ({node, ...props}: any) => <strong className="font-bold text-slate-900" {...props} />,
+  em: ({node, ...props}: any) => <em className="italic" {...props} />,
+  mark: ({node, ...props}: any) => <mark className="bg-yellow-200 text-slate-900 px-1.5 py-0.5 rounded-md font-medium" {...props} />,
+  table: ({node, ...props}: any) => (
+    <div className="overflow-x-auto mb-4 rounded-lg border border-slate-200">
+      <table className="min-w-full divide-y divide-slate-200" {...props} />
+    </div>
+  ),
+  thead: ({node, ...props}: any) => <thead className="bg-slate-50" {...props} />,
+  tbody: ({node, ...props}: any) => <tbody className="divide-y divide-slate-200 bg-white" {...props} />,
+  tr: ({node, ...props}: any) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
+  th: ({node, ...props}: any) => <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider" {...props} />,
+  td: ({node, ...props}: any) => <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" {...props} />
+};
+
 const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: { content: string, isStreaming?: boolean, onContentChange?: () => void, sources?: any[] }) => {
   const wasStreaming = useRef(isStreaming);
   const [displayedContent, setDisplayedContent] = useState(wasStreaming.current ? '' : content);
@@ -171,6 +287,17 @@ const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: 
     }
 
     if (displayedContent.length < content.length) {
+      // Fast-forward logic: if we are inside a code block, show everything received so far
+      const lastCodeBlockStart = displayedContent.lastIndexOf('```');
+      const startsCode = lastCodeBlockStart !== -1;
+      const lastCodeBlockEnd = displayedContent.indexOf('```', lastCodeBlockStart + 3);
+      const isInsideCodeBlock = startsCode && lastCodeBlockEnd === -1;
+
+      if (isInsideCodeBlock) {
+        setDisplayedContent(content);
+        return;
+      }
+
       const timeout = setTimeout(() => {
         setDisplayedContent(prev => {
           const diff = content.length - prev.length;
@@ -190,60 +317,22 @@ const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: 
   }, [displayedContent]);
 
   return (
-    <ReactMarkdown 
-      remarkPlugins={[remarkGfm]} 
-      rehypePlugins={[rehypeRaw]}
-      components={{
-        h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
-        h2: ({node, ...props}) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
-        h3: ({node, ...props}) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900" {...props} />,
-        p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
-        ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-4" {...props} />,
-        ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-4" {...props} />,
-        li: ({node, ...props}) => <li className="mb-1" {...props} />,
-        code: ({node, inline, className, children, ...props}: any) => {
-          const match = /language-(\w+)/.exec(className || '');
-          if (!inline && match && match[1] === 'html_chart') {
-            return (
-              <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white">
-                <iframe 
-                  srcDoc={String(children).replace(/\n$/, '')} 
-                  className="w-full h-[450px] border-0"
-                  sandbox="allow-scripts"
-                />
-              </div>
-            );
-          }
-          return (
-            <code className={className} {...props}>
-              {children}
-            </code>
-          );
-        },
-        a: ({node, href, children, ...props}) => {
-          return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" {...props}>{children}</a>;
-        },
-        strong: ({node, ...props}) => <strong className="font-bold text-slate-900" {...props} />,
-        em: ({node, ...props}) => <em className="italic" {...props} />,
-        mark: ({node, ...props}) => <mark className="bg-yellow-200 text-slate-900 px-1.5 py-0.5 rounded-md font-medium" {...props} />,
-        table: ({node, ...props}) => (
-          <div className="overflow-x-auto mb-4 rounded-lg border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200" {...props} />
-          </div>
-        ),
-        thead: ({node, ...props}) => <thead className="bg-slate-50" {...props} />,
-        tbody: ({node, ...props}) => <tbody className="divide-y divide-slate-200 bg-white" {...props} />,
-        tr: ({node, ...props}) => <tr className="hover:bg-slate-50 transition-colors" {...props} />,
-        th: ({node, ...props}) => <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider" {...props} />,
-        td: ({node, ...props}) => <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" {...props} />
-      }}
-    >
-      {displayedContent}
-    </ReactMarkdown>
+    <StreamingContext.Provider value={isStreaming}>
+      <ReactMarkdown 
+        remarkPlugins={[remarkGfm]} 
+        rehypePlugins={[rehypeRaw]}
+        components={MemoizedMarkdownComponents}
+      >
+        {displayedContent}
+      </ReactMarkdown>
+    </StreamingContext.Provider>
   );
 };
 
 import { WeatherCard } from './components/WeatherCard';
+import { MapCard } from './components/MapCard';
+import { AudioPlayerCard } from './components/AudioPlayerCard';
+import { LiveEditorCard } from './components/LiveEditorCard';
 
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -270,8 +359,39 @@ export default function App() {
     isClassifying?: boolean;
     isStreaming?: boolean;
     weatherCity?: string;
+    mapLocation?: string;
+    musicTrack?: string;
   }[]>([]);
   const [inputValue, setInputValue] = useState("");
+
+// Crie o componente TimelineIframe interceptor:
+const TimelineIframe = ({ srcDoc }: { srcDoc: string }) => {
+  const localId = React.useId();
+  const idValue = React.useMemo(() => localId.replace(/:/g, ''), [localId]);
+  const [height, setHeight] = useState(250);
+  const injectedSrcDoc = srcDoc.replace(/__UUID__/g, idValue);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'resize_timeline' && e.data.id === idValue) {
+        setHeight(Math.max(250, e.data.height + 40));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [idValue]);
+
+  return (
+    <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white transition-all duration-300">
+      <iframe 
+        srcDoc={injectedSrcDoc} 
+        className="w-full border-0 transition-all duration-300"
+        style={{ height: `${height}px` }}
+        sandbox="allow-scripts allow-same-origin allow-popups"
+      />
+    </div>
+  );
+};
   const [chatMode, setChatMode] = useState<'Rápido' | 'Raciocínio' | 'Pro'>('Rápido');
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
@@ -284,6 +404,33 @@ export default function App() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const [imageServiceStatus, setImageServiceStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.altKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+        try {
+          const res = await fetch('/api/image-service');
+          const data = await res.json();
+          setImageServiceStatus(data.service || "Desconhecido");
+        } catch (err) {
+          setImageServiceStatus("Erro ao checar serviço");
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Checks scroll position to see if user has scrolled up
+  const handleScroll = () => {
+    if (scrollAreaRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 150; // 150px threshold
+      setIsUserScrolledUp(!isNearBottom);
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -331,17 +478,19 @@ export default function App() {
     mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
   };
 
-  const scrollToBottom = (smooth = true) => {
+  const scrollToBottom = (force = false, smooth = true) => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({
-        top: scrollAreaRef.current.scrollHeight,
-        behavior: smooth ? "smooth" : "auto"
-      });
+      if (!isUserScrolledUp || force) {
+        scrollAreaRef.current.scrollTo({
+          top: scrollAreaRef.current.scrollHeight,
+          behavior: smooth ? "smooth" : "auto"
+        });
+      }
     }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom(false);
   }, [messages]);
 
   const safeFetchJson = async (url: string, options: RequestInit) => {
@@ -411,6 +560,9 @@ export default function App() {
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setAttachedImages([]);
+    
+    // Force scroll when user sends message
+    setTimeout(() => scrollToBottom(true), 10);
 
     if (isImageGen) {
       setIsGeneratingImage(true);
@@ -522,6 +674,10 @@ export default function App() {
               if (data.type === 'chunk') {
                 finalContent += data.content;
               }
+
+              if (data.type === 'error') {
+                throw new Error(data.error);
+              }
               
               setMessages(prev => {
                 const newMsgs = [...prev];
@@ -536,6 +692,10 @@ export default function App() {
                   newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: false, searchQuery: data.query, isSearching: true };
                 } else if (data.type === 'weather_start') {
                   newMsgs[aiMessageIndex] = { ...currentMsg, weatherCity: data.city };
+                } else if (data.type === 'map_start') {
+                  newMsgs[aiMessageIndex] = { ...currentMsg, mapLocation: data.location };
+                } else if (data.type === 'music_start') {
+                  newMsgs[aiMessageIndex] = { ...currentMsg, musicTrack: data.query };
                 } else if (data.type === 'search_complete') {
                   newMsgs[aiMessageIndex] = { 
                     ...currentMsg, 
@@ -548,13 +708,13 @@ export default function App() {
                   };
                 } else if (data.type === 'chunk') {
                   newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: false, content: finalContent };
-                } else if (data.type === 'error') {
-                  throw new Error(data.error);
                 }
                 return newMsgs;
               });
-            } catch (e) {
-              // Ignore parse errors for incomplete chunks
+            } catch (e: any) {
+              if (e.message && e.message.includes('413') || e.message.includes('error')) {
+                throw e; // Roda pro try/catch mestre
+              }
             }
           }
         }
@@ -925,6 +1085,7 @@ export default function App() {
             {/* Chat Messages Area */}
             <div 
               ref={scrollAreaRef}
+              onScroll={handleScroll}
               className="flex-1 overflow-y-auto p-6 space-y-6 relative bg-white scroll-smooth"
             >
               <div className="max-w-5xl mx-auto">
@@ -1005,6 +1166,14 @@ export default function App() {
                                     );
                                   })}
                                 </div>
+                              )}
+                              
+                              {msg.mapLocation && (
+                                <MapCard location={msg.mapLocation} />
+                              )}
+
+                              {msg.musicTrack && (
+                                <AudioPlayerCard query={msg.musicTrack} />
                               )}
 
                               {msg.weatherCity && (
@@ -1491,6 +1660,31 @@ export default function App() {
                     />
                   </button>
                 ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Image Service Status Modal (Debug) */}
+      <AnimatePresence>
+        {imageServiceStatus && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-6 z-[100] border border-slate-200"
+          >
+            <div className="flex flex-col items-center gap-4">
+              <button 
+                onClick={() => setImageServiceStatus(null)}
+                className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h2 className="text-lg font-bold text-slate-900 pr-8">Serviço de Imagem Ativo</h2>
+              <div className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-sm text-slate-700">
+                {imageServiceStatus}
               </div>
             </div>
           </motion.div>
