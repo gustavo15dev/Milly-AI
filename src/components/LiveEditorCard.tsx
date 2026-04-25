@@ -9,12 +9,13 @@ import 'prismjs/themes/prism.css';
 interface LiveEditorCardProps {
   initialCode: string;
   isStreaming?: boolean;
+  defaultMode?: 'edit' | 'preview';
 }
 
-export const LiveEditorCard: React.FC<LiveEditorCardProps> = ({ initialCode, isStreaming }) => {
+export const LiveEditorCard: React.FC<LiveEditorCardProps> = ({ initialCode, isStreaming, defaultMode = 'edit' }) => {
   const [code, setCode] = useState(initialCode);
   const [debouncedCode, setDebouncedCode] = useState(initialCode);
-  const [mode, setMode] = useState<'edit' | 'preview'>('preview');
+  const [mode, setMode] = useState<'edit' | 'preview'>(defaultMode);
   const [copied, setCopied] = useState(false);
 
   // Sync initialCode when it updates from streaming

@@ -74,8 +74,23 @@ app.post("/api/chat", async (req, res) => {
   try {
     const { messages, model, hasImages, useWebSearch } = req.body;
     
+    let openRouterClient: Groq | null = null;
+    if (model === "nvidia/nemotron-3-super-120b-a12b:free") {
+      if (!process.env.OPENROUTER_API_KEY) {
+        throw new Error("OPENROUTER_API_KEY is not set in environment variables");
+      }
+      openRouterClient = new Groq({ apiKey: process.env.OPENROUTER_API_KEY, baseURL: "https://openrouter.ai/api/v1" });
+    }
+
     const groqClient = getGroq();
     
+    const clientToUse = openRouterClient || groqClient;
+    
+    // Fallback if model is the nemotron one but the user did not choose it (this is for robustness). 
+    // Wait, the user specifically mentioned he chose it in the UI and just needs it to work. 
+    const selectedModel = model === "nvidia/nemotron-3-super-120b-a12b:free" ? model : (hasImages ? "llama-3.2-11b-vision-preview" : (model || "llama-3.1-8b-instant"));
+    const supportsTools = !hasImages && selectedModel !== "nvidia/nemotron-3-super-120b-a12b:free"; // Typically these non-llama free models don't support tools perfectly format-wise, though nemotron might. Let's keep it tool-free just in case, but actually, the classifiers are done by the llama 8b inline. Wait, no! The classifier is ALWAYS run by Llama 8b. So it doesn't matter.
+
     const systemPrompt = `Você é um sistema de inteligência focado em lógica, eficiência e clareza, mas com um tom amigável e humano.
 
 ### DIRETRIZES DE PERSONALIDADE:
@@ -104,6 +119,68 @@ Responda como um especialista conversando com um colega competente. Sem formalid
 - Se a resposta é em texto puro: use **negrito** e markdown.
 - Para informações MUITO importantes que devem ser "grifadas" (highlight), use a tag HTML <mark>texto aqui</mark>. Isso criará um fundo azul claro no texto, destacando-o.
 
+### ARTIFACTS INTERATIVOS DE SIMULAÇÃO (html_slider) - REGRA ABSOLUTA:
+- Você POSSUI o poder de injetar "Simulações Interativas" no meio da sua resposta quando achar ÚTIL mostrar uma variável mudando e suas consequências em tempo real.
+- Diferente de outros artifacts dependentes do classificador, ESTE VOCÊ MESMO DECIDE SE QUER USAR e quantos quer usar (pode ser mais de 1 por resposta).
+- OBRIGATÓRIO: Ao lado ou acima do Slider, mostre claramente o VALOR ATUAL (o número exato) da variável controlada, atualizando em tempo real. O usuário precisa ver o número atual do lado/cima do controle mudando enquanto arrasta.
+- Além do destaque do número, atualize: um texto explicativo das consequências, e um snippet de código/exemplo prático refletindo a alteração.
+- ATENÇÃO MÁXIMA À PRECISÃO CIENTÍFICA E MATEMÁTICA: Se a simulação envolver cálculos (ex: física, matemática, finanças), você DEVE usar as fórmulas reais e precisas no código JavaScript. Exemplo: cálculo de distância de frenagem deve usar a equação correta de Torricelli considerando tempo de reação e atrito (d = v*t + v²/(2*u*g)), convertendo km/h para m/s. Nunca invente dados ou proporções falsas/lineares quando a relação for exponencial/quadrática.
+- Use APENAS HTML, CSS e JS puro.
+- Englobe o seu código do artifact DENTRO de um bloco de código markdown com a linguagem "html_slider". IMPORTANTE: USE SEMPRE \`\`\`html_slider e feche com \`\`\`. NAO USE as tags <controle>! Apenas o markdow \`\`\`html_slider.
+Exemplo prático de estrutura que funciona e é bonita:
+\`\`\`html_slider
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: transparent; }
+        .container { max-width: 100%; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .label { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block; color: #333; }
+        .value { font-size: 24px; font-weight: 700; color: #0969da; margin-bottom: 20px; font-family: monospace; }
+        input[type="range"] { width: 100%; height: 8px; border-radius: 5px; background: linear-gradient(to right, #0969da, #1f6feb); outline: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: white; border: 3px solid #0969da; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+        .consequencia { margin-top: 20px; padding: 15px; background: #f8f9fa; border-left: 4px solid #0969da; border-radius: 4px; font-size: 14px; color: #444; }
+        .codigo { margin-top: 15px; background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; font-family: monospace; white-space: pre-wrap; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <label class="label" style="margin: 0;">Velocidade do Carro</label>
+        <div class="value" style="font-size: 24px; font-weight: bold; color: #0969da;"><span id="display-num">80</span> <span style="font-size: 16px; color: #666;">km/h</span></div>
+    </div>
+    <input type="range" id="slider" min="10" max="200" step="1" value="80" oninput="updateValue(this.value)">
+    <div class="consequencia" id="consequencia">A distância de frenagem aumenta.</div>
+    <div class="codigo" id="codigo">distancia = calcular(80)</div>
+</div>
+<script>
+    function updateValue(val) {
+        document.getElementById('display-num').textContent = val;
+        
+        // Conversão para metros por segundo (m/s)
+        const velocidadeMs = val / 3.6;
+        
+        // Distância de reação (1 segundo de tempo de reação)
+        const tempoReacao = 1.0;
+        const distReacao = velocidadeMs * tempoReacao;
+        
+        // Distância de frenagem (Física: d = v² / 2ug)
+        // u = coeficiente de atrito (aprox 0.7 para asfalto seco)
+        // g = gravidade (9.81 m/s²)
+        const distFrenagem = (velocidadeMs * velocidadeMs) / (2 * 0.7 * 9.81);
+        
+        // Distância total
+        const distTotal = distReacao + distFrenagem;
+        
+        document.getElementById('consequencia').textContent = "Distância total de parada: " + distTotal.toFixed(1) + " metros (Reação: " + distReacao.toFixed(1) + "m + Frenagem: " + distFrenagem.toFixed(1) + "m).";
+        document.getElementById('codigo').innerHTML = "v_ms = " + val + " / 3.6<br/>d_parada = (v_ms * 1.0) + (v_ms**2 / (2 * 0.7 * 9.81))";
+    }
+</script>
+</body>
+</html>
+\`\`\`
+
 ### ARTIFACTS (INFOGRÁFICOS E RESUMOS VISUAIS) - REGRA ABSOLUTA:
 - A decisão de gerar um Artifact é tomada pelo classificador. Siga a INSTRUÇÃO CRÍTICA DO CLASSIFICADOR no final deste prompt.
 - REGRAS DO ARTIFACT (SE PERMITIDO):
@@ -119,8 +196,9 @@ EXEMPLO CORRETO (OBRIGATÓRIO):
 A filosofia tem vários ramos.
 <artifact>Desenhe um mapa mental com Sócrates e Ética.</artifact>`;
 
-    const selectedModel = hasImages ? "llama-3.2-11b-vision-preview" : (model || "llama-3.1-8b-instant");
-    const supportsTools = !hasImages;
+    const groqClientForClassifier = getGroq();
+    
+    // selectedModel is already defined above, so replace this one
 
     let currentMessages: any[] = [
       { role: "system", content: systemPrompt },
@@ -380,7 +458,7 @@ REGRAS OBRIGATÓRIAS DE DESIGN:
     }
 
     // No tool calls, just stream the response
-    const stream = await groqClient.chat.completions.create({
+    const stream = await clientToUse.chat.completions.create({
       messages: currentMessages,
       model: selectedModel,
       stream: true,

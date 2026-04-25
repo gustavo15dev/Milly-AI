@@ -161,6 +161,41 @@ const SearchLog = ({ query, sources, isSearching }: { query?: string, sources?: 
   );
 };
 
+const LOADING_PHRASES = [
+  "Analisando sua solicitação...",
+  "Consultando dados...",
+  "Estruturando o raciocínio...",
+  "Construindo a solução...",
+  "Refinando os detalhes...",
+  "Validando informações...",
+  "Sintetizando a resposta...",
+  "Organizando o layout...",
+  "Finalizando o processamento...",
+  "Quase lá..."
+];
+
+const LoadingIndicator = () => {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((i) => (i + 1) % LOADING_PHRASES.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 text-slate-400 text-sm mb-3">
+      <div className="flex gap-1">
+        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+      </div>
+      <span className="transition-opacity duration-500 ease-in-out">{LOADING_PHRASES[index]}</span>
+    </div>
+  );
+};
+
 const MermaidIframe = ({ srcDoc }: { srcDoc: string }) => {
   const localId = React.useId();
   const idValue = React.useMemo(() => localId.replace(/:/g, ''), [localId]);
@@ -189,13 +224,86 @@ const MermaidIframe = ({ srcDoc }: { srcDoc: string }) => {
   );
 };
 
+const SimulacaoIframe = ({ srcDoc }: { srcDoc: string }) => {
+  const localId = React.useId();
+  const idValue = React.useMemo(() => localId.replace(/:/g, ''), [localId]);
+  const [height, setHeight] = useState(250);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'resize_simulacao' && e.data.id === idValue) {
+        setHeight(Math.max(100, e.data.height + 20));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [idValue]);
+
+  // Inject ResizeObserver script
+  const scriptToInject = `
+    <script>
+      const obs = new ResizeObserver(() => {
+        window.parent.postMessage({ type: 'resize_simulacao', id: '${idValue}', height: document.documentElement.scrollHeight }, '*');
+      });
+      obs.observe(document.body);
+    </script>
+  `;
+  
+  let finalSrc = srcDoc;
+  if (finalSrc.includes('</body>')) {
+    finalSrc = finalSrc.replace('</body>', scriptToInject + '</body>');
+  } else {
+    finalSrc += scriptToInject;
+  }
+
+  return (
+    <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white transition-all duration-300">
+      <iframe 
+        srcDoc={finalSrc} 
+        className="w-full border-0 transition-all duration-300"
+        style={{ height: `${height}px` }}
+        sandbox="allow-scripts allow-same-origin allow-popups"
+      />
+    </div>
+  );
+};
+
+// Crie o componente TimelineIframe interceptor:
+const TimelineIframe = ({ srcDoc }: { srcDoc: string }) => {
+  const localId = React.useId();
+  const idValue = React.useMemo(() => localId.replace(/:/g, ''), [localId]);
+  const [height, setHeight] = useState(250);
+  const injectedSrcDoc = srcDoc.replace(/__UUID__/g, idValue);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'resize_timeline' && e.data.id === idValue) {
+        setHeight(Math.max(250, e.data.height + 40));
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [idValue]);
+
+  return (
+    <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white transition-all duration-300">
+      <iframe 
+        srcDoc={injectedSrcDoc} 
+        className="w-full border-0 transition-all duration-300"
+        style={{ height: `${height}px` }}
+        sandbox="allow-scripts allow-same-origin allow-popups"
+      />
+    </div>
+  );
+};
+
 const StreamingContext = createContext<boolean | undefined>(false);
 
 const MemoizedMarkdownComponents = {
   h1: ({node, ...props}: any) => <h1 className="text-2xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
   h2: ({node, ...props}: any) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
   h3: ({node, ...props}: any) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900" {...props} />,
-  p: ({node, ...props}: any) => <p className="mb-4 last:mb-0" {...props} />,
+  p: ({node, ...props}: any) => <p className="mb-4 last:mb-0 whitespace-pre-wrap leading-relaxed break-words" {...props} />,
   ul: ({node, ...props}: any) => <ul className="list-disc pl-4 mb-4" {...props} />,
   ol: ({node, ...props}: any) => <ol className="list-decimal pl-4 mb-4" {...props} />,
   li: ({node, ...props}: any) => <li className="mb-1" {...props} />,
@@ -217,6 +325,8 @@ const MemoizedMarkdownComponents = {
       return <MermaidIframe srcDoc={String(children).replace(/\n$/, '')} />;
     } else if (!inline && match && match[1] === 'html_timeline') {
       return <TimelineIframe srcDoc={String(children).replace(/\n$/, '')} />;
+    } else if (!inline && match && match[1] === 'html_slider') {
+      return <SimulacaoIframe srcDoc={String(children).replace(/\n$/, '')} />;
     } else if (!inline && match && (match[1] === 'html_editor' || match[1] === 'html' || match[1] === 'css' || match[1] === 'javascript' || match[1] === 'js')) {
       let codeStr = String(children).replace(/\n$/, '');
       if (match[1] === 'css' && !codeStr.includes('<style')) {
@@ -224,7 +334,7 @@ const MemoizedMarkdownComponents = {
       } else if ((match[1] === 'javascript' || match[1] === 'js') && !codeStr.includes('<script')) {
         codeStr = `<!DOCTYPE html>\n<html>\n<body>\n<!-- OVERRIDE DE SEGURANÇA: JS DETECTADO -->\n<script>\n${codeStr}\n</script>\n</body>\n</html>`;
       }
-      return <LiveEditorCard initialCode={codeStr} isStreaming={isStreaming} />;
+      return <LiveEditorCard initialCode={codeStr} isStreaming={isStreaming} defaultMode="edit" />;
     }
 
     if (!inline && match) {
@@ -251,12 +361,21 @@ const MemoizedMarkdownComponents = {
       );
     }
 
+    if (!inline) {
+      return (
+        <div className="my-6 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <code className="text-sm font-mono text-slate-800 whitespace-pre-wrap break-words" {...props}>{children}</code>
+        </div>
+      );
+    }
+
     return (
-      <code className={className} {...props}>
+      <code className="bg-slate-100 text-pink-600 px-1.5 py-0.5 rounded-md text-sm font-mono" {...props}>
         {children}
       </code>
     );
   },
+  pre: ({node, children, ...props}: any) => <>{children}</>,
   a: ({node, href, children, ...props}: any) => {
     return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" {...props}>{children}</a>;
   },
@@ -363,35 +482,6 @@ export default function App() {
     musicTrack?: string;
   }[]>([]);
   const [inputValue, setInputValue] = useState("");
-
-// Crie o componente TimelineIframe interceptor:
-const TimelineIframe = ({ srcDoc }: { srcDoc: string }) => {
-  const localId = React.useId();
-  const idValue = React.useMemo(() => localId.replace(/:/g, ''), [localId]);
-  const [height, setHeight] = useState(250);
-  const injectedSrcDoc = srcDoc.replace(/__UUID__/g, idValue);
-
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'resize_timeline' && e.data.id === idValue) {
-        setHeight(Math.max(250, e.data.height + 40));
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [idValue]);
-
-  return (
-    <div className="my-6 w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-white transition-all duration-300">
-      <iframe 
-        srcDoc={injectedSrcDoc} 
-        className="w-full border-0 transition-all duration-300"
-        style={{ height: `${height}px` }}
-        sandbox="allow-scripts allow-same-origin allow-popups"
-      />
-    </div>
-  );
-};
   const [chatMode, setChatMode] = useState<'Rápido' | 'Raciocínio' | 'Pro'>('Rápido');
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false);
@@ -1123,16 +1213,7 @@ const TimelineIframe = ({ srcDoc }: { srcDoc: string }) => {
                           )}
                           {msg.role === 'ai' ? (
                             <div className="markdown-body text-sm leading-relaxed text-slate-800">
-                              {msg.isClassifying && (
-                                <div className="flex items-center gap-2 text-slate-400 text-sm mb-3">
-                                  <div className="flex gap-1">
-                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                                  </div>
-                                  <span>Analisando pergunta...</span>
-                                </div>
-                              )}
+                              {msg.isClassifying && <LoadingIndicator />}
                               {(msg.isSearching || msg.searchQuery || (msg.sources && msg.sources.length > 0)) && (
                                 <SearchLog query={msg.searchQuery} sources={msg.sources} isSearching={msg.isSearching} />
                               )}
