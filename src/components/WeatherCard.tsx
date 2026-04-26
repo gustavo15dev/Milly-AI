@@ -61,7 +61,7 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ city }) => {
         let geoData = JSON.parse(localStorage.getItem(cacheKey) || 'null');
         
         if (!geoData) {
-          const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
+          const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=pt`);
           const geoJson = await geoRes.json();
           
           if (!geoJson.results || geoJson.results.length === 0) {
@@ -72,13 +72,14 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ city }) => {
         }
 
         // 2. Weather
-        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geoData.latitude}&longitude=${geoData.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`);
+        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geoData.latitude}&longitude=${geoData.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max&timezone=auto`);
         const weatherJson = await weatherRes.json();
 
         setData({
-          cityName: `${geoData.name}, ${geoData.country_code}`,
+          cityName: `${geoData.name}${geoData.admin1 ? ', ' + geoData.admin1 : ''}, ${geoData.country_code}`,
           current: weatherJson.current,
-          daily: weatherJson.daily
+          daily: weatherJson.daily,
+          timezone: weatherJson.timezone
         });
       } catch (err: any) {
         setError(err.message);
@@ -109,56 +110,75 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ city }) => {
   // Se for noite e céu limpo, usar ícone de lua
   const CurrentIcon = (currentCode === 0 && !isDay) ? Moon : weatherInfo.icon;
 
+  const getUVStatus = (uv: number) => {
+    if (uv <= 2) return { text: 'Baixo', color: 'bg-green-400' };
+    if (uv <= 5) return { text: 'Moderado', color: 'bg-yellow-400' };
+    if (uv <= 7) return { text: 'Alto', color: 'bg-orange-500' };
+    if (uv <= 10) return { text: 'Muito Alto', color: 'bg-red-600' };
+    return { text: 'Extremo', color: 'bg-purple-600' };
+  };
+
+  const uvStatus = getUVStatus(data.daily.uv_index_max[0]);
+
   return (
-    <div className="flex w-full max-w-[550px] h-auto sm:h-[220px] flex-col sm:flex-row bg-gradient-to-br from-blue-900 to-blue-500 rounded-[28px] text-white p-6 shadow-[0_15px_35px_rgba(59,130,246,0.3)] relative overflow-hidden mb-4 font-sans">
+    <div className="flex w-full max-w-[550px] h-auto sm:min-h-[220px] flex-col sm:flex-row bg-gradient-to-br from-blue-900 to-blue-500 rounded-[28px] text-white p-6 shadow-[0_15px_35px_rgba(59,130,246,0.3)] relative overflow-hidden mb-4 font-sans border border-blue-400/30">
       {/* Lado Esquerdo: Principal */}
       <div className="flex-[1.2] flex flex-col justify-between mb-4 sm:mb-0">
         <div>
-          <h2 className="text-2xl font-bold m-0">{data.cityName}</h2>
+          <h2 className="text-2xl font-bold m-0 leading-tight">{data.cityName}</h2>
           <div className="text-sm opacity-80 mb-2 capitalize">{formatDate()}</div>
         </div>
         
-        <div className="flex items-center gap-4 my-2">
-          <span className="text-5xl font-bold">{Math.round(data.current.temperature_2m)}°</span>
-          <div className="flex flex-col items-center">
-            <CurrentIcon className="w-8 h-8 mb-1" />
-            <div className="text-base capitalize font-medium">{weatherInfo.text}</div>
+        <div className="flex items-center gap-6 my-2">
+          <span className="text-6xl font-black tracking-tighter">{Math.round(data.current.temperature_2m)}°</span>
+          <div className="flex flex-col">
+            <CurrentIcon className="w-10 h-10 mb-1" />
+            <div className="text-lg capitalize font-bold leading-none">{weatherInfo.text}</div>
           </div>
         </div>
       </div>
 
       {/* Lado Direito: Detalhes e Mini Forecast */}
-      <div className="flex-1 bg-white/10 backdrop-blur-md rounded-2xl p-4 flex flex-col justify-between">
-        <div className="grid grid-cols-2 gap-2 text-xs border-b border-white/20 pb-3">
-          <div>
-            <span className="block opacity-70 text-[10px] uppercase">Umidade</span>
+      <div className="flex-1 bg-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between border border-white/10">
+        <div className="grid grid-cols-2 gap-3 text-xs border-b border-white/20 pb-4">
+          <div className="flex flex-col">
+            <span className="opacity-70 text-[9px] font-bold uppercase tracking-wider">Umidade</span>
             <b className="text-sm">{data.current.relative_humidity_2m}%</b>
           </div>
-          <div>
-            <span className="block opacity-70 text-[10px] uppercase">Vento</span>
+          <div className="flex flex-col">
+            <span className="opacity-70 text-[9px] font-bold uppercase tracking-wider">Vento</span>
             <b className="text-sm">{data.current.wind_speed_10m} km/h</b>
           </div>
-          <div>
-            <span className="block opacity-70 text-[10px] uppercase">Sensação</span>
+          <div className="flex flex-col">
+            <span className="opacity-70 text-[9px] font-bold uppercase tracking-wider">Sensação</span>
             <b className="text-sm">{Math.round(data.current.apparent_temperature)}°</b>
           </div>
-          <div>
-            <span className="block opacity-70 text-[10px] uppercase">UV</span>
-            <b className="text-sm">Baixo</b>
+          <div className="flex flex-col">
+            <span className="opacity-70 text-[9px] font-bold uppercase tracking-wider">UV Máx</span>
+            <div className="flex items-center gap-2">
+              <b className="text-sm">{data.daily.uv_index_max[0]}</b>
+              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${uvStatus.color}`}>
+                {uvStatus.text}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex justify-between mt-3">
+        <div className="flex justify-between mt-4">
           {data.daily.time.slice(1, 4).map((time: string, idx: number) => {
             const code = data.daily.weather_code[idx + 1];
             const DayIcon = weatherCodeMap[code]?.icon || Cloud;
             const maxTemp = Math.round(data.daily.temperature_2m_max[idx + 1]);
+            const minTemp = Math.round(data.daily.temperature_2m_min[idx + 1]);
             
             return (
               <div key={time} className="text-center text-xs flex flex-col items-center">
-                <span className="capitalize">{idx === 0 ? 'Amanhã' : getDayName(time)}</span>
-                <DayIcon className="w-4 h-4 my-1" />
-                <b className="text-sm">{maxTemp}°</b>
+                <span className="capitalize opacity-80 text-[10px] mb-1">{idx === 0 ? 'Amanhã' : getDayName(time)}</span>
+                <DayIcon className="w-5 h-5 my-1" />
+                <div className="flex flex-col">
+                  <b className="text-sm leading-none">{maxTemp}°</b>
+                  <span className="text-[9px] opacity-60 font-medium">{minTemp}°</span>
+                </div>
               </div>
             );
           })}

@@ -1147,7 +1147,7 @@ export default function App() {
                     <Sparkle className="w-8 h-8 text-slate-900 fill-slate-900" />
                   </div>
                   <div>
-                    <h2 className="font-display font-bold text-lg leading-none text-slate-900">Milly AI 1</h2>
+                    <h2 className="font-display font-bold text-lg leading-none text-slate-900">Milly AI 1.1 Gold</h2>
                     <div className="flex items-center gap-1.5 mt-1">
                       <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                       <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Online</span>

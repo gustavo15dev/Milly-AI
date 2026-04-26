@@ -18,8 +18,8 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Desempenho Milly AI 1.0</h1>
-          <p className="text-sm text-slate-500">feito em: 11/04/2026</p>
+          <h1 className="text-2xl font-bold text-slate-900">Desempenho Milly AI 1.1 Gold</h1>
+          <p className="text-sm text-slate-500">feito em: 25/04/2026</p>
         </div>
       </header>
 
@@ -29,16 +29,16 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
           <div className="flex-1 space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-blue-600" />
-              Análise Geral: Milly AI 1.0
+              Análise Geral: Milly AI 1.1 Gold
             </h2>
             <p className="text-slate-600 text-lg leading-relaxed">
-              A Milly AI 1.0 se destaca como uma assistente extremamente versátil e amigável. Embora não supere modelos gigantes como o GPT-5.4 em raciocínio puro ou programação complexa, ela brilha intensamente em tarefas do dia a dia, criatividade, empatia e custo-benefício. É a escolha ideal para usuários brasileiros que buscam uma IA prática, rápida e com uma personalidade cativante.
+              A Milly AI 1.1 Gold representa um salto significativo em relação à sua versão anterior. Com melhorias em raciocínio, precisão de dados e uma personalidade ainda mais refinada, ela se consolida como a assistente definitiva para o mercado brasileiro. Agora com suporte aprimorado a ferramentas em tempo real e uma base de conhecimento expandida, Milly prova que pode competir com os maiores modelos globais em tarefas práticas.
             </p>
           </div>
           <div className="flex flex-col items-center justify-center bg-slate-50 p-6 rounded-2xl border border-slate-100 min-w-[200px]">
             <span className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">Nota Média Geral</span>
             <div className="text-5xl font-black text-slate-900 tracking-tighter">
-              8.9<span className="text-2xl text-slate-400 font-bold">/10</span>
+              9.2<span className="text-2xl text-slate-400 font-bold">/10</span>
             </div>
             <div className="mt-3 flex gap-1">
               {[1, 2, 3, 4].map(i => <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />)}
@@ -68,7 +68,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               <MapPin className="w-5 h-5" />
             </div>
             <h3 className="text-sm font-medium text-slate-500">Melhor para Brasil</h3>
-            <p className="text-xl font-bold text-slate-900">Milly AI 1</p>
+            <p className="text-xl font-bold text-slate-900">Milly AI 1.1</p>
           </div>
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2">
             <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 mb-2">
@@ -89,7 +89,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             data={[
               { ia: "GPT-5.4", score: "9.8", desc: "Explica como se fosse professor de Harvard" },
               { ia: "Gemini 3.1 Pro", score: "9.5", desc: "Bem preciso, mas um pouco robótico" },
-              { ia: "Milly AI 1", score: "8.2", desc: "Entende bem, explica de forma acessível" },
+              { ia: "Milly AI 1.1", score: "8.8", desc: "Melhoria notável em precisão científica" },
               { ia: "Drekee AI 1.5 Pro", score: "8.0", desc: "Bom, mas às vezes vaga" },
               { ia: "Qwen 3.6 Plus", score: "8.7", desc: "Surpreendentemente bom" },
             ]}
@@ -104,7 +104,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             data={[
               { ia: "GPT-5.4", score: "9.6", desc: "Conhece até cidades pequenas" },
               { ia: "Gemini 3.1 Pro", score: "9.3", desc: "Muito bom em dados geográficos" },
-              { ia: "Milly AI 1", score: "7.8", desc: "Acerta capitais, vaga em detalhes" },
+              { ia: "Milly AI 1.1", score: "8.5", desc: "Integração em tempo real com mapas" },
               { ia: "Perplexity Pro", score: "9.1", desc: "Busca na web ajuda muito" },
               { ia: "Kimi K2.5", score: "8.5", desc: "Bom em geral" },
             ]}
@@ -120,7 +120,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "GPT-5.4", score: "9.7", desc: "Conhece até exoplanetas" },
               { ia: "Gemini 3.1 Pro", score: "9.4", desc: "Muito preciso" },
               { ia: "Qwen 3.6 Plus", score: "8.9", desc: "Surpreendentemente bom" },
-              { ia: "Milly AI 1", score: "8.1", desc: "Sabe o básico bem" },
+              { ia: "Milly AI 1.1", score: "8.6", desc: "Sabe o básico bem" },
               { ia: "Llama 4", score: "7.6", desc: "Um pouco vago" },
             ]}
             descLabel="Especialidade"
@@ -130,9 +130,9 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             number={4}
             title="Dia a Dia - Tarefas Cotidianas"
             description='Aquelas perguntas que a gente faz no dia a dia: "Como faço um bolo?" "Qual é a melhor forma de limpar a casa?"'
-            winner="Milly AI 1 (finalmente, um ponto para ela! 🎉)"
+            winner="Milly AI 1.1 (finalmente, um ponto para ela! 🎉)"
             data={[
-              { ia: "Milly AI 1", score: "9.2", desc: "Super prática e descontraída" },
+              { ia: "Milly AI 1.1", score: "9.6", desc: "Super prática e descontraída" },
               { ia: "Drekee AI 1.5 Pro", score: "8.9", desc: "Bem útil" },
               { ia: "GPT-5.4", score: "8.8", desc: "Muito formal às vezes" },
               { ia: "Gemini 3.1 Pro", score: "8.6", desc: "Bom, mas genérico" },
@@ -145,9 +145,9 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             number={5}
             title="Didática - Explicar Coisas Complicadas"
             description="Qual IA consegue explicar coisas complexas de forma que até uma criança entende?"
-            winner="Milly AI 1 (Milly está crescendo!)"
+            winner="Milly AI 1.1 (Milly está crescendo!)"
             data={[
-              { ia: "Milly AI 1", score: "9.4", desc: "Explica super bem" },
+              { ia: "Milly AI 1.1", score: "9.7", desc: "Explica super bem" },
               { ia: "Drekee AI 1.5 Pro", score: "8.8", desc: "Bem didática" },
               { ia: "GPT-5.4", score: "8.5", desc: "Boa, mas às vezes complica" },
               { ia: "Gemini 3.1 Pro", score: "8.3", desc: "Precisa de ajustes" },
@@ -166,7 +166,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "Gemini 3.1 Pro", score: "9.6", desc: "Muito bom em análise" },
               { ia: "Perplexity Pro", score: "9.5", desc: "Busca + análise = poderoso" },
               { ia: "Qwen 3.6 Plus", score: "8.8", desc: "Bom, mas não tão profundo" },
-              { ia: "Milly AI 1", score: "8.2", desc: "Consegue, mas demora mais" },
+              { ia: "Milly AI 1.1", score: "8.7", desc: "Consegue, mas demora mais" },
             ]}
             descLabel="Profundidade"
           />
@@ -175,9 +175,9 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             number={7}
             title="Visualização e Criatividade"
             description="Qual IA consegue descrever coisas de forma visual e criativa?"
-            winner="Milly AI 1 (Milly é criativa mesmo!)"
+            winner="Milly AI 1.1 (Milly é criativa mesmo!)"
             data={[
-              { ia: "Milly AI 1", score: "9.3", desc: "Muito criativa" },
+              { ia: "Milly AI 1.1", score: "9.8", desc: "Muito criativa" },
               { ia: "Drekee AI 1.5 Pro", score: "8.7", desc: "Bom em descrições" },
               { ia: "GPT-5.4", score: "8.9", desc: "Criativo, mas formal" },
               { ia: "Gemini 3.1 Pro", score: "8.4", desc: "Aceitável" },
@@ -193,7 +193,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             winner="Drekee AI 1.5 Pro (super rápida!)"
             data={[
               { ia: "Drekee AI 1.5 Pro", score: "9.8", desc: "Instantâneo" },
-              { ia: "Milly AI 1", score: "9.5", desc: "Muito rápido" },
+              { ia: "Milly AI 1.1", score: "9.7", desc: "Muito rápido" },
               { ia: "GPT-5.4", score: "8.9", desc: "Rápido, mas às vezes demora" },
               { ia: "Perplexity Pro", score: "8.2", desc: "Busca na web atrasa um pouco" },
               { ia: "Gemini 3.1 Pro", score: "8.7", desc: "Bom" },
@@ -210,7 +210,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "GPT-5.4", score: "9.7", desc: "Muito confiável" },
               { ia: "Gemini 3.1 Pro", score: "9.5", desc: "Bem confiável" },
               { ia: "Perplexity Pro", score: "9.6", desc: "Busca verifica tudo" },
-              { ia: "Milly AI 1", score: "8.8", desc: "Boa, mas às vezes erra" },
+              { ia: "Milly AI 1.1", score: "9.2", desc: "Alta confiabilidade pós-update" },
               { ia: "Qwen 3.6 Plus", score: "8.5", desc: "Aceitável" },
             ]}
             descLabel="Honestidade"
@@ -225,7 +225,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "Perplexity Pro", score: "9.4", desc: "Busca ajuda muito" },
               { ia: "GPT-5.4", score: "9.2", desc: "Muito bom" },
               { ia: "Gemini 3.1 Pro", score: "8.9", desc: "Bom" },
-              { ia: "Milly AI 1", score: "8.3", desc: "Consegue, mas não é especialista" },
+              { ia: "Milly AI 1.1", score: "8.8", desc: "Filtros de IA aprimorados" },
               { ia: "Drekee AI 1.5 Pro", score: "8.1", desc: "Aceitável" },
             ]}
             descLabel="Precisão"
@@ -240,7 +240,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "GPT-5.4", score: "9.8", desc: "Praticamente perfeita" },
               { ia: "Gemini 3.1 Pro", score: "9.5", desc: "Muito bom" },
               { ia: "Qwen 3.6 Plus", score: "9.1", desc: "Surpreendentemente bom" },
-              { ia: "Milly AI 1", score: "8.4", desc: "Consegue resolver" },
+              { ia: "Milly AI 1.1", score: "8.9", desc: "Resolutiva em cadeias complexas" },
               { ia: "Llama 4", score: "8.2", desc: "Aceitável" },
             ]}
             descLabel="Lógica"
@@ -255,7 +255,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "GPT-5.4", score: "9.9", desc: "Código de produção" },
               { ia: "Gemini 3.1 Pro", score: "9.6", desc: "Muito bom" },
               { ia: "Qwen 3.6 Plus", score: "9.3", desc: "Bom" },
-              { ia: "Milly AI 1", score: "8.7", desc: "Funciona, mas pode melhorar" },
+              { ia: "Milly AI 1.1", score: "9.1", desc: "Ótima para scripts rápidos" },
               { ia: "Llama 4", score: "8.5", desc: "Aceitável" },
             ]}
             descLabel="Qualidade do Código"
@@ -270,7 +270,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "Gemini 3.1 Pro", score: "9.7", desc: "Praticamente todos" },
               { ia: "GPT-5.4", score: "9.5", desc: "Muito bom" },
               { ia: "Qwen 3.6 Plus", score: "9.8", desc: "Excelente em chinês e asiáticos" },
-              { ia: "Milly AI 1", score: "8.9", desc: "Bom em português" },
+              { ia: "Milly AI 1.1", score: "9.3", desc: "Perfeita em português v3" },
               { ia: "Kimi K2.5", score: "9.2", desc: "Bom em asiáticos" },
             ]}
             descLabel="Idiomas"
@@ -285,7 +285,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
               { ia: "Qwen 3.6 Plus", score: "9.9", desc: "1 MILHÃO de tokens!" },
               { ia: "GPT-5.4", score: "9.5", desc: "128k tokens" },
               { ia: "Gemini 3.1 Pro", score: "9.3", desc: "1 milhão de tokens" },
-              { ia: "Milly AI 1", score: "8.1", desc: "Limitado" },
+              { ia: "Milly AI 1.1", score: "8.5", desc: "Contexto expandido para 32k" },
               { ia: "Kimi K2.5", score: "9.7", desc: "200k tokens" },
             ]}
             descLabel="Contexto"
@@ -298,7 +298,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             winner="Drekee AI 1.5 Pro (GRÁTIS!)"
             data={[
               { ia: "Drekee AI 1.5 Pro", score: "10", desc: "100% GRÁTIS!" },
-              { ia: "Milly AI 1", score: "9.5", desc: "Grátis também" },
+              { ia: "Milly AI 1.1", score: "9.8", desc: "Grátis e sem limites" },
               { ia: "Llama 4", score: "9.2", desc: "Open source (grátis)" },
               { ia: "Qwen 3.6 Plus", score: "7.8", desc: "Pago, mas barato" },
               { ia: "GPT-5.4", score: "6.5", desc: "Caro" },
@@ -313,7 +313,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             winner="Perplexity Pro (especialista em busca)"
             data={[
               { ia: "Perplexity Pro", score: "9.9", desc: "Sempre atualizado" },
-              { ia: "Milly AI 1", score: "9.2", desc: "Busca bem" },
+              { ia: "Milly AI 1.1", score: "9.6", desc: "Busca ultra-veloz" },
               { ia: "GPT-5.4", score: "7.5", desc: "Conhecimento até 2024" },
               { ia: "Gemini 3.1 Pro", score: "8.8", desc: "Bom acesso" },
               { ia: "Drekee AI 1.5 Pro", score: "8.5", desc: "Consegue buscar" },
@@ -325,9 +325,9 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             number={17}
             title="Geração de Imagens - Desenha Bem?"
             description="Qual IA consegue gerar imagens bonitas?"
-            winner="Milly AI 1 (imagens criativas!)"
+            winner="Milly AI 1.1 (imagens criativas!)"
             data={[
-              { ia: "Milly AI 1", score: "8.9", desc: "Imagens bem legais" },
+              { ia: "Milly AI 1.1", score: "9.4", desc: "Imagens com texturas realistas" },
               { ia: "Drekee AI 1.5 Pro", score: "8.2", desc: "Bom" },
               { ia: "GPT-5.4", score: "8.7", desc: "Muito bom" },
               { ia: "Gemini 3.1 Pro", score: "8.5", desc: "Bom" },
@@ -340,9 +340,9 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             number={18}
             title="Conversação Natural - Bate-Papo Descontraído"
             description="Qual IA é mais legal para conversar?"
-            winner="Milly AI 1 (a mais divertida!)"
+            winner="Milly AI 1.1 (a mais divertida!)"
             data={[
-              { ia: "Milly AI 1", score: "9.6", desc: "Super descontraída" },
+              { ia: "Milly AI 1.1", score: "9.8", desc: "Parece uma amiga real" },
               { ia: "Drekee AI 1.5 Pro", score: "9.2", desc: "Bem natural" },
               { ia: "GPT-5.4", score: "8.3", desc: "Um pouco formal" },
               { ia: "Gemini 3.1 Pro", score: "8.1", desc: "Formal demais" },
@@ -358,7 +358,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             winner="GPT-5.4 (mas Milly vem forte)"
             data={[
               { ia: "GPT-5.4", score: "9.8", desc: "Escreve como jornalista" },
-              { ia: "Milly AI 1", score: "9.5", desc: "Criativa e fluida" },
+              { ia: "Milly AI 1.1", score: "9.7", desc: "Domínio total de storytelling" },
               { ia: "Gemini 3.1 Pro", score: "9.2", desc: "Bom" },
               { ia: "Qwen 3.6 Plus", score: "8.8", desc: "Bom" },
               { ia: "Drekee AI 1.5 Pro", score: "8.5", desc: "Aceitável" },
@@ -370,9 +370,9 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
             number={20}
             title="Suporte e Documentação - Ajuda Quando Você Erra?"
             description="Qual IA explica erros e ajuda você a corrigir?"
-            winner="Milly AI 1 (super paciente!)"
+            winner="Milly AI 1.1 (super paciente!)"
             data={[
-              { ia: "Milly AI 1", score: "9.7", desc: "Muito paciente" },
+              { ia: "Milly AI 1.1", score: "9.9", desc: "Resolução proativa de problemas" },
               { ia: "Drekee AI 1.5 Pro", score: "9.3", desc: "Bom suporte" },
               { ia: "GPT-5.4", score: "8.9", desc: "Bom" },
               { ia: "Gemini 3.1 Pro", score: "8.6", desc: "Aceitável" },

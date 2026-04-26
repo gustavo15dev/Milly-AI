@@ -1,5 +1,5 @@
 {
-  "name": "Milly AI 1",
-  "description": "Uma inteligência artificial com design moderno, profissional e imersivo, apresentando uma paleta preta com detalhes em verde água e profundidade 3D.",
-  "requestFramePermissions": []
+  "name": "Milly AI 1.1 Gold",
+  "description": "A assistente de IA definitiva com design moderno, processamento em tempo real e visualizações de dados avançadas. Evolução da Milly AI com foco em performance e precisão.",
+  "requestFramePermissions": ["geolocation"]
 }

@@ -91,7 +91,7 @@ app.post("/api/chat", async (req, res) => {
     const selectedModel = model === "nvidia/nemotron-3-super-120b-a12b:free" ? model : (hasImages ? "llama-3.2-11b-vision-preview" : (model || "llama-3.1-8b-instant"));
     const supportsTools = !hasImages && selectedModel !== "nvidia/nemotron-3-super-120b-a12b:free"; // Typically these non-llama free models don't support tools perfectly format-wise, though nemotron might. Let's keep it tool-free just in case, but actually, the classifiers are done by the llama 8b inline. Wait, no! The classifier is ALWAYS run by Llama 8b. So it doesn't matter.
 
-    const systemPrompt = `Você é um sistema de inteligência focado em lógica, eficiência e clareza, mas com um tom amigável e humano.
+    const systemPrompt = `Você é a **Milly AI 1.1 Gold**, um sistema de inteligência de elite focado em lógica, eficiência e clareza, mas com um tom amigável, moderno e humano.
 
 ### DIRETRIZES DE PERSONALIDADE:
 1. **Sem Encheção:** Não confirme que entendeu, não peça desculpas, não use transições inúteis ("Entendo que...", "Aqui está"). Exceto: seja caloroso e conversativo em interações casuais.
@@ -312,8 +312,72 @@ IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
         if (graficoMatch && !climaMatch && !mapaMatch && !mermaidMatch && !timelineMatch && !editorMatch) {
           const tipo = graficoMatch[1].toUpperCase();
           const templates: Record<string, string> = {
-            LINHAS: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 600px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="lineChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('lineChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'line',\n            data: {\n                labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'], // Eixo X (Editável)\n                datasets: [{\n                    label: 'Vendas da Semana (Exemplo)', // Nome da série (Editável)\n                    data: [12, 19, 15, 25, 22, 30, 28], // Valores (Editável)\n                    borderColor: '#3b82f6',\n                    backgroundColor: 'rgba(59, 130, 246, 0.1)',\n                    fill: true,\n                    tension: 0.4\n                }]\n            },\n            options: { responsive: true, plugins: { legend: { display: true } } }\n        });\n    </script>\n</body>\n</html>`,
-            VERTICAL: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 600px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="barChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('barChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'bar',\n            data: {\n                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai'], \n                datasets: [{\n                    label: 'Novos Usuários',\n                    data: [400, 650, 590, 800, 950],\n                    backgroundColor: '#10b981',\n                    borderRadius: 8\n                }]\n            },\n            options: { responsive: true, scales: { y: { beginAtZero: true } } }\n        });\n    </script>\n</body>\n</html>`,
+            LINHAS: `<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }
+        .chart-container { width: 100%; max-width: 600px; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <canvas id="lineChart"></canvas>
+    </div>
+    <script>
+        const ctx = document.getElementById('lineChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Jan 2026', 'Fev 2026', 'Mar 2026', 'Abr 2026', 'Mai 2026', 'Jun 2026', 'Jul 2026'], // Eixo X (Editável)
+                datasets: [{
+                    label: 'Crescimento de Usuários (Milly AI)', // Nome da série (Editável)
+                    data: [120, 190, 150, 250, 320, 410, 480], // Valores (Editável)
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: true } } }
+        });
+    </script>
+</body>
+</html>`,
+            VERTICAL: `<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }
+        .chart-container { width: 100%; max-width: 600px; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <canvas id="barChart"></canvas>
+    </div>
+    <script>
+        const ctx = document.getElementById('barChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Milly AI 1.1', 'GPT-4o', 'Claude 3.5', 'Gemini 1.5 Pro', 'Llama 3.1'], 
+                datasets: [{
+                    label: 'Velocidade de Resposta (tokens/s)',
+                    data: [95, 80, 75, 88, 70],
+                    backgroundColor: '#10b981',
+                    borderRadius: 8
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+    </script>
+</body>
+</html>`,
             PIZZA: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 400px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="pieChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('pieChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'pie',\n            data: {\n                labels: ['Eletrônicos', 'Moda', 'Alimentos'],\n                datasets: [{\n                    data: [45, 25, 30],\n                    backgroundColor: ['#6366f1', '#f43f5e', '#f59e0b']\n                }]\n            },\n            options: { plugins: { legend: { position: 'bottom' } } }\n        });\n    </script>\n</body>\n</html>`,
             HORIZONTAL: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 600px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="horizBarChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('horizBarChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'bar',\n            data: {\n                labels: ['Produto A', 'Produto B', 'Produto C', 'Produto D'],\n                datasets: [{\n                    label: 'Estoque Atual',\n                    data: [120, 190, 30, 85],\n                    backgroundColor: '#8b5cf6',\n                    borderRadius: 5\n                }]\n            },\n            options: { indexAxis: 'y', responsive: true }\n        });\n    </script>\n</body>\n</html>`,
             ROSCA: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 400px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="doughnutChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('doughnutChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'doughnut',\n            data: {\n                labels: ['Concluído', 'Em Andamento', 'Pendente'],\n                datasets: [{\n                    data: [70, 20, 10],\n                    backgroundColor: ['#22c55e', '#3b82f6', '#e2e8f0'],\n                    borderWidth: 0,\n                    hoverOffset: 10\n                }]\n            },\n            options: { cutout: '70%', plugins: { legend: { position: 'bottom' } } }\n        });\n    </script>\n</body>\n</html>`
@@ -555,29 +619,29 @@ REGRAS TÉCNICAS:
     let lastError: any = null;
 
     try {
-      console.log("Gerando artifact: Tentando gemini-2.5-flash...");
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: systemPrompt,
+      console.log("Gerando artifact: Tentando gemini-1.5-flash...");
+      const response = await ai.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+      }).generateContent({
+        contents: [{ role: 'user', parts: [{ text: systemPrompt + "\n\nSolicitação: " + prompt }] }],
+        generationConfig: {
           temperature: 0.5,
         }
       });
-      htmlContent = response.text;
+      htmlContent = response.response.text();
     } catch (e1: any) {
-      console.warn("gemini-2.5-flash falhou:", e1.message);
+      console.warn("gemini-1.5-flash falhou:", e1.message);
       try {
-        console.log("Gerando artifact: Tentando gemini-2.5-flash-lite...");
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-lite',
-          contents: prompt,
-          config: {
-            systemInstruction: systemPrompt,
+        console.log("Gerando artifact: Tentando gemini-1.5-flash-8b...");
+        const response = await ai.getGenerativeModel({
+          model: 'gemini-1.5-flash-8b',
+        }).generateContent({
+          contents: [{ role: 'user', parts: [{ text: systemPrompt + "\n\nSolicitação: " + prompt }] }],
+          generationConfig: {
             temperature: 0.5,
           }
         });
-        htmlContent = response.text;
+        htmlContent = response.response.text();
       } catch (e2: any) {
         console.warn("gemini-2.5-flash-lite falhou:", e2.message);
         try {
