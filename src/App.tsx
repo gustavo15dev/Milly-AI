@@ -12,8 +12,6 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Benchmark from "./components/Benchmark";
 import { 
-  Sparkles, 
-  Sparkle,
   MessageSquare, 
   Zap, 
   Shield, 
@@ -33,8 +31,12 @@ import {
   Mic,
   ChevronDown,
   CheckCircle2,
-  Link2
+  Link2,
+  Sparkles,
+  Sparkle
 } from "lucide-react";
+
+import logo from "./components/logo.png";
 
 const SearchLog = ({ query, sources, isSearching }: { query?: string, sources?: any[], isSearching?: boolean }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -477,6 +479,9 @@ export default function App() {
     isSearching?: boolean;
     isClassifying?: boolean;
     isStreaming?: boolean;
+    isThinking?: boolean;
+    interrupted?: boolean;
+    thoughts?: string;
     weatherCity?: string;
     mapLocation?: string;
     musicTrack?: string;
@@ -491,6 +496,8 @@ export default function App() {
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -607,7 +614,29 @@ export default function App() {
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() && attachedImages.length === 0) return;
+    if ((!inputValue.trim() && attachedImages.length === 0) || isStreaming) {
+      if (isStreaming && abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        setIsStreaming(false);
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          const lastIdx = newMsgs.length - 1;
+          if (lastIdx >= 0 && newMsgs[lastIdx].role === 'ai') {
+            newMsgs[lastIdx] = { 
+              ...newMsgs[lastIdx], 
+              content: '', // Limpa o conteúdo parcial
+              isStreaming: false, 
+              isClassifying: false,
+              isSearching: false,
+              isThinking: false,
+              interrupted: true 
+            };
+          }
+          return newMsgs;
+        });
+      }
+      return;
+    }
     
     const isImageGen = inputValue.toLowerCase().startsWith('/imagem ') || 
                       (isImageToolActive && inputValue.trim().length > 0);
@@ -694,22 +723,33 @@ export default function App() {
       return;
     }
 
-    try {
-      const formattedMessages = messages.map(m => ({
-        role: m.role === 'ai' ? 'assistant' : 'user',
-        content: m.content
-      }));
+    setIsStreaming(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
-      // Add current message with images if present
-      const currentMsgContent: any[] = [{ type: "text", text: userMessage.content || "Análise esta imagem." }];
-      if (userMessage.images) {
-        userMessage.images.forEach(img => {
-          currentMsgContent.push({
-            type: "image_url",
-            image_url: { url: img }
+    try {
+      const formattedMessages = messages.map(m => {
+        if (m.images && m.images.length > 0) {
+          const contentParts: any[] = [{ type: "text", text: m.content || "Analise esta imagem." }];
+          m.images.forEach((img: string) => {
+            const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
+            contentParts.push({
+              type: "image_url",
+              image_url: { url: `data:image/jpeg;base64,${base64Data}` }
+            });
           });
-        });
-      }
+          return {
+            role: m.role === 'ai' ? 'assistant' : 'user',
+            content: contentParts
+          };
+        }
+        return {
+          role: m.role === 'ai' ? 'assistant' : 'user',
+          content: m.content
+        };
+      });
+
+      const messageType = userMessage.images ? 'vision' : 'chat';
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -719,11 +759,13 @@ export default function App() {
         body: JSON.stringify({
           messages: [
             ...formattedMessages,
-            { role: "user", content: userMessage.images ? currentMsgContent : userMessage.content }
+            { role: "user", content: userMessage.content || "" }
           ],
           hasImages: !!userMessage.images,
-          model: "llama-3.1-8b-instant"
+          images: userMessage.images || [],
+          model: messageType === 'chat' ? 'llama-3.1-8b-instant' : (messageType === 'vision' ? 'gemma-3-12b-it' : null)
         }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -739,10 +781,11 @@ export default function App() {
       if (!reader) throw new Error("No reader");
       const decoder = new TextDecoder();
       
-      let aiMessage = { role: 'ai' as const, content: '', isStreaming: true };
+      let aiMessage = { role: 'ai' as const, content: '', isStreaming: true, isThinking: true };
       setMessages(prev => [...prev, aiMessage]);
       
       let finalContent = "";
+      let finalThoughts = "";
       let artifactPrompt = null;
       let aiMessageIndex = -1;
       let buffer = "";
@@ -763,6 +806,8 @@ export default function App() {
               
               if (data.type === 'chunk') {
                 finalContent += data.content;
+              } else if (data.type === 'thought') {
+                finalThoughts += data.content;
               }
 
               if (data.type === 'error') {
@@ -776,19 +821,22 @@ export default function App() {
                 }
                 const currentMsg = newMsgs[aiMessageIndex];
                 
+                const clearThinking = { isThinking: false };
+                
                 if (data.type === 'classifier_start') {
-                  newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: true };
+                  newMsgs[aiMessageIndex] = { ...currentMsg, ...clearThinking, isClassifying: true };
                 } else if (data.type === 'search_start') {
-                  newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: false, searchQuery: data.query, isSearching: true };
+                  newMsgs[aiMessageIndex] = { ...currentMsg, ...clearThinking, isClassifying: false, searchQuery: data.query, isSearching: true };
                 } else if (data.type === 'weather_start') {
-                  newMsgs[aiMessageIndex] = { ...currentMsg, weatherCity: data.city };
+                  newMsgs[aiMessageIndex] = { ...currentMsg, ...clearThinking, weatherCity: data.city };
                 } else if (data.type === 'map_start') {
-                  newMsgs[aiMessageIndex] = { ...currentMsg, mapLocation: data.location };
+                  newMsgs[aiMessageIndex] = { ...currentMsg, ...clearThinking, mapLocation: data.location };
                 } else if (data.type === 'music_start') {
-                  newMsgs[aiMessageIndex] = { ...currentMsg, musicTrack: data.query };
+                  newMsgs[aiMessageIndex] = { ...currentMsg, ...clearThinking, musicTrack: data.query };
                 } else if (data.type === 'search_complete') {
                   newMsgs[aiMessageIndex] = { 
                     ...currentMsg, 
+                    ...clearThinking,
                     isClassifying: false,
                     isSearching: false,
                     sources: data.sources,
@@ -796,8 +844,10 @@ export default function App() {
                     followUpQuestions: data.followUpQuestions,
                     searchAnswer: data.searchAnswer
                   };
+                } else if (data.type === 'thought') {
+                  newMsgs[aiMessageIndex] = { ...currentMsg, ...clearThinking, isClassifying: false, thoughts: finalThoughts };
                 } else if (data.type === 'chunk') {
-                  newMsgs[aiMessageIndex] = { ...currentMsg, isClassifying: false, content: finalContent };
+                  newMsgs[aiMessageIndex] = { ...currentMsg, ...clearThinking, isClassifying: false, content: finalContent };
                 }
                 return newMsgs;
               });
@@ -879,8 +929,15 @@ export default function App() {
         return newMsgs;
       });
     } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log("Geração abortada pelo usuário");
+        return;
+      }
       console.error("Chat Error:", error);
       setMessages(prev => [...prev, { role: 'ai' as const, content: error.message || "Desculpe, ocorreu um erro ao processar sua mensagem. Verifique se a chave da API Groq está configurada." }]);
+    } finally {
+      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -908,8 +965,8 @@ export default function App() {
             <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
               <div className="max-w-7xl mx-auto flex items-center justify-between bg-white/80 backdrop-blur-xl border border-slate-200 rounded-2xl px-6 py-3 shadow-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center shadow-sm">
-                    <Cpu className="w-5 h-5 text-white" />
+                  <div className="w-8 h-8 flex items-center justify-center">
+                    <img src={logo} alt="Milly Logo" className="w-full h-full object-contain" />
                   </div>
                   <span className="font-display font-bold text-xl tracking-tight text-slate-900">Milly <span className="text-blue-600">AI 1</span></span>
                 </div>
@@ -959,7 +1016,7 @@ export default function App() {
                   transition={{ duration: 0.8, ease: "easeOut" }}
                 >
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-xs font-bold uppercase tracking-widest mb-6">
-                    <Sparkles className="w-3 h-3" />
+                    <img src={logo} className="w-3 h-3" alt="" />
                     A Próxima Geração de IA
                   </div>
                   
@@ -1041,7 +1098,7 @@ export default function App() {
                         className="w-[60%] h-[60%] bg-gradient-to-br from-blue-500 to-blue-700 rounded-[40px] flex items-center justify-center relative overflow-hidden group shadow-lg"
                       >
                         <div className="absolute inset-2 bg-white/20 backdrop-blur-sm rounded-[32px] border border-white/40 flex items-center justify-center">
-                          <Cpu className="w-24 h-24 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
+                          <img src={logo} className="w-24 h-24 drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]" alt="Milly Core" />
                         </div>
                         <motion.div 
                           animate={{ top: ["-10%", "110%"] }}
@@ -1083,7 +1140,7 @@ export default function App() {
                   
                   <div className="relative z-10 max-w-3xl">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-600 text-xs font-bold uppercase tracking-widest mb-6">
-                      <Sparkles className="w-3 h-3" />
+                      <img src={logo} className="w-3 h-3" alt="" />
                       Novo Projeto
                     </div>
                     
@@ -1099,8 +1156,8 @@ export default function App() {
                     
                     <div className="grid sm:grid-cols-3 gap-6">
                       <div className="flex flex-col gap-2">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                          <Sparkle className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center italic">
+                          <img src={logo} className="w-5 h-5" alt="" />
                         </div>
                         <h3 className="font-bold text-slate-900">Visual Rico</h3>
                         <p className="text-sm text-slate-500">Interfaces modernas com Tailwind CSS e componentes interativos.</p>
@@ -1144,7 +1201,7 @@ export default function App() {
                 </button>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 flex items-center justify-center overflow-hidden">
-                    <Sparkle className="w-8 h-8 text-slate-900 fill-slate-900" />
+                    <img src={logo} alt="Milly Logo" className="w-10 h-10 object-contain" />
                   </div>
                   <div>
                     <h2 className="font-display font-bold text-lg leading-none text-slate-900">Milly AI 1.1 Gold</h2>
@@ -1196,9 +1253,20 @@ export default function App() {
                         key={idx}
                         initial={{ opacity: 0, x: msg.role === 'ai' ? -20 : 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'justify-center w-full'}`}
+                        className={`flex w-full max-w-4xl mx-auto gap-4 items-start ${msg.role === 'user' ? 'justify-end' : 'justify-center'}`}
                       >
-                        <div className={`${msg.role === 'ai' ? 'bg-transparent max-w-3xl mx-auto w-full' : 'bg-slate-100 rounded-tr-none shadow-sm max-w-[85%] w-fit'} p-6 rounded-2xl`}>
+                        {msg.role === 'ai' && (
+                          <div className="w-8 h-8 flex-shrink-0 mt-6">
+                            <motion.img 
+                              src={logo} 
+                              alt="Milly" 
+                              className="w-full h-full object-contain"
+                              animate={(msg.isThinking || (msg.isStreaming && msg.content === '') || msg.isClassifying || msg.isSearching) ? { rotate: 360 } : { rotate: 0 }}
+                              transition={ (msg.isThinking || (msg.isStreaming && msg.content === '') || msg.isClassifying || msg.isSearching) ? { repeat: Infinity, duration: 2, ease: "linear" } : { duration: 0.5 }}
+                            />
+                          </div>
+                        )}
+                        <div className={`${msg.role === 'ai' ? 'bg-transparent flex-1 pt-6 pb-2' : 'bg-slate-100 rounded-tr-none shadow-sm max-w-[85%] w-fit mt-2 p-6'} rounded-2xl`}>
                           {msg.images && (
                             <div className="flex flex-wrap gap-2 mb-3">
                               {msg.images.map((img, i) => (
@@ -1214,6 +1282,19 @@ export default function App() {
                           {msg.role === 'ai' ? (
                             <div className="markdown-body text-sm leading-relaxed text-slate-800">
                               {msg.isClassifying && <LoadingIndicator />}
+                              
+                              {msg.thoughts && (
+                                <div className="mb-4 bg-slate-50/50 border border-slate-200 rounded-xl p-4 text-slate-500 text-xs italic font-sans animate-in fade-in slide-in-from-top-1 duration-500">
+                                  <div className="flex items-center gap-2 mb-2 font-bold uppercase tracking-wider text-[10px] text-slate-400">
+                                    <Bot className="w-3 h-3" />
+                                    Pensamentos da Milly
+                                  </div>
+                                  <div className="whitespace-pre-wrap">
+                                    {msg.thoughts}
+                                  </div>
+                                </div>
+                              )}
+
                               {(msg.isSearching || msg.searchQuery || (msg.sources && msg.sources.length > 0)) && (
                                 <SearchLog query={msg.searchQuery} sources={msg.sources} isSearching={msg.isSearching} />
                               )}
@@ -1284,6 +1365,12 @@ export default function App() {
                                       ))}
                                     </div>
                                   </div>
+                                </div>
+                              )}
+                              {msg.interrupted && (
+                                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 text-red-500/80 text-[10px] font-medium uppercase tracking-wider animate-in fade-in slide-in-from-bottom-1 duration-500">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                                  A resposta da IA foi interrompida
                                 </div>
                               )}
                             </div>
@@ -1606,9 +1693,21 @@ export default function App() {
                       </button>
                       <button 
                         onClick={handleSendMessage}
-                        className={`ml-1 p-2 rounded-xl flex items-center justify-center transition-all ${inputValue.trim() || attachedImages.length > 0 ? 'bg-black text-white shadow-sm' : 'bg-slate-200 text-slate-400'}`}
+                        className={`ml-1 p-2 rounded-xl flex items-center justify-center transition-all ${
+                          isStreaming 
+                            ? 'bg-red-50 text-red-600 hover:bg-red-100 ring-2 ring-red-100' 
+                            : (inputValue.trim() || attachedImages.length > 0)
+                              ? 'bg-black text-white shadow-sm hover:scale-105 active:scale-95' 
+                              : 'bg-slate-200 text-slate-400'
+                        }`}
                       >
-                        <Send className="w-5 h-5" />
+                        {isStreaming ? (
+                          <div className="w-5 h-5 flex items-center justify-center">
+                            <div className="w-2.5 h-2.5 bg-current rounded-[2px]" />
+                          </div>
+                        ) : (
+                          <Send className="w-5 h-5" />
+                        )}
                       </button>
                     </div>
                   </div>

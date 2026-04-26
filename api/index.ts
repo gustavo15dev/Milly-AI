@@ -6,7 +6,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // Groq Client Lazy Initialization
 let groq: Groq | null = null;
@@ -72,7 +73,7 @@ app.get('/api/image-service', (req, res) => {
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const { messages, model, hasImages, useWebSearch } = req.body;
+    const { messages, model, hasImages, useWebSearch, images } = req.body;
     
     let openRouterClient: Groq | null = null;
     if (model === "nvidia/nemotron-3-super-120b-a12b:free") {
@@ -84,12 +85,21 @@ app.post("/api/chat", async (req, res) => {
 
     const groqClient = getGroq();
     
-    const clientToUse = openRouterClient || groqClient;
-    
-    // Fallback if model is the nemotron one but the user did not choose it (this is for robustness). 
-    // Wait, the user specifically mentioned he chose it in the UI and just needs it to work. 
-    const selectedModel = model === "nvidia/nemotron-3-super-120b-a12b:free" ? model : (hasImages ? "llama-3.2-11b-vision-preview" : (model || "llama-3.1-8b-instant"));
-    const supportsTools = !hasImages && selectedModel !== "nvidia/nemotron-3-super-120b-a12b:free"; // Typically these non-llama free models don't support tools perfectly format-wise, though nemotron might. Let's keep it tool-free just in case, but actually, the classifiers are done by the llama 8b inline. Wait, no! The classifier is ALWAYS run by Llama 8b. So it doesn't matter.
+    const imageList = images || [];
+    // Check history for images too to ensure model consistency
+    const historyHasImages = messages.some((m: any) => 
+      (Array.isArray(m.content) && m.content.some((part: any) => part.type === "image_url")) ||
+      (m.images && m.images.length > 0)
+    );
+    const containsImages = imageList.length > 0 || hasImages || historyHasImages;
+
+    let clientToUse = groqClient;
+    if (model === "nvidia/nemotron-3-super-120b-a12b:free") {
+      clientToUse = openRouterClient!;
+    }
+
+    const selectedModel = model === "nvidia/nemotron-3-super-120b-a12b:free" ? model : (containsImages ? "gemma-3-12b-it" : (model || "llama-3.1-8b-instant"));
+    const supportsTools = !containsImages && selectedModel !== "nvidia/nemotron-3-super-120b-a12b:free"; 
 
     const systemPrompt = `Você é a **Milly AI 1.1 Gold**, um sistema de inteligência de elite focado em lógica, eficiência e clareza, mas com um tom amigável, moderno e humano.
 
@@ -198,12 +208,41 @@ A filosofia tem vários ramos.
 
     const groqClientForClassifier = getGroq();
     
-    // selectedModel is already defined above, so replace this one
+    let currentSystemPrompt = systemPrompt;
 
-    let currentMessages: any[] = [
-      { role: "system", content: systemPrompt },
-      ...messages
-    ];
+    if (containsImages) {
+      currentSystemPrompt += `\n\n### AVISO IMPORTANTE (VISÃO - GEMMA 3):
+Você está recebendo imagens anexadas. Ao analisar imagens com o modelo gemma-3-12b-it, você NÃO POSSUI a capacidade de gerar Artifacts (como gráficos, mapas, códigos interativos ou diagramas mermaid). Se o usuário solicitar a criação de algum desses elementos enquanto houver imagens anexadas, você deve gentilmente informar que não consegue gerar artefatos visuais ou códigos interativos quando está analisando imagens, e deve responder apenas em texto baseando-se no que vê.`;
+    }
+
+    let finalMessages: any[] = [];
+    
+    // Process messages and include images if it is the vision model
+    if (containsImages && selectedModel === "gemma-3-12b-it") {
+      finalMessages = [
+        { role: "system", content: currentSystemPrompt },
+        ...messages.map((m: any, idx: number) => {
+          if (m.role === "user" && idx === messages.length - 1) {
+            const contentParts: any[] = [{ type: "text", text: m.content || "Analise esta imagem." }];
+            imageList.forEach((img: string) => {
+              // Ensure we have only the base64 part if it's a data URL
+              const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
+              contentParts.push({
+                type: "image_url",
+                image_url: { url: `data:image/jpeg;base64,${base64Data}` }
+              });
+            });
+            return { role: "user", content: contentParts };
+          }
+          return m;
+        })
+      ];
+    } else {
+      finalMessages = [
+        { role: "system", content: currentSystemPrompt },
+        ...messages
+      ];
+    }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -222,7 +261,7 @@ A filosofia tem vários ramos.
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
 
         const classifierRes = await groqClient.chat.completions.create({
           model: "llama-3.1-8b-instant",
@@ -291,13 +330,13 @@ IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
           res.write(`data: ${JSON.stringify({ type: 'weather_start', city })}\n\n`);
         }
 
-        const mapaMatch = answer.match(/MAPA:\s*([^,]+)/i);
+        const mapaMatch = answer.match(/MAPA:\s*([^,\n]+)/i);
         if (mapaMatch) {
           const location = mapaMatch[1].trim();
           res.write(`data: ${JSON.stringify({ type: 'map_start', location })}\n\n`);
         }
 
-        const musicaMatch = answer.match(/MUSICA:\s*([^,]+)/i);
+        const musicaMatch = answer.match(/^MUSICA:\s*([^,\n]+)/i);
         if (musicaMatch) {
           const query = musicaMatch[1].trim();
           res.write(`data: ${JSON.stringify({ type: 'music_start', query })}\n\n`);
@@ -383,13 +422,13 @@ IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
             ROSCA: `<!DOCTYPE html>\n<html>\n<head>\n    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">\n    <style>\n        body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; background: transparent; margin: 0; }\n        .chart-container { width: 100%; max-width: 400px; padding: 20px; }\n    </style>\n</head>\n<body>\n    <div class="chart-container">\n        <canvas id="doughnutChart"></canvas>\n    </div>\n    <script>\n        const ctx = document.getElementById('doughnutChart').getContext('2d');\n        new Chart(ctx, {\n            type: 'doughnut',\n            data: {\n                labels: ['Concluído', 'Em Andamento', 'Pendente'],\n                datasets: [{\n                    data: [70, 20, 10],\n                    backgroundColor: ['#22c55e', '#3b82f6', '#e2e8f0'],\n                    borderWidth: 0,\n                    hoverOffset: 10\n                }]\n            },\n            options: { cutout: '70%', plugins: { legend: { position: 'bottom' } } }\n        });\n    </script>\n</body>\n</html>`
           };
           const template = templates[tipo] || templates.LINHAS;
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM GRÁFICO DO TIPO ${tipo}. É OBRIGATÓRIO incluir o gráfico em qualquer lugar da sua resposta usando um bloco de código markdown com a linguagem "html_chart". Você DEVE usar o template HTML base abaixo, mas alterando APENAS os dados (labels e data) e os textos para refletir a sua resposta. USE OS DADOS DA BUSCA NA WEB (se existirem nos resultados de busca abaixo) para colocar valores REAIS E PRECISOS no gráfico.\n\nTemplate a ser usado dentro do bloco \`\`\`html_chart\n${template}\n\`\`\``;
+          finalMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM GRÁFICO DO TIPO ${tipo}. É OBRIGATÓRIO incluir o gráfico em qualquer lugar da sua resposta usando um bloco de código markdown com a linguagem "html_chart". Você DEVE usar o template HTML base abaixo, mas alterando APENAS os dados (labels e data) e os textos para refletir a sua resposta. USE OS DADOS DA BUSCA NA WEB (se existirem nos resultados de busca abaixo) para colocar valores REAIS E PRECISOS no gráfico.\n\nTemplate a ser usado dentro do bloco \`\`\`html_chart\n${template}\n\`\`\``;
         } else if (timelineMatch && !climaMatch && !mapaMatch && !mermaidMatch && !editorMatch) {
           const timelineTemplate = `<!DOCTYPE html>\n<html lang="pt-br">\n<head>\n    <meta charset="UTF-8">\n    <style>\n        body { margin: 0; padding: 20px 0; font-family: 'Inter', sans-serif; background: transparent; }\n        .timeline { position: relative; max-width: 800px; margin: 0 auto; }\n        .timeline::after { content: ''; position: absolute; width: 4px; background: #e2e8f0; top: 0; bottom: 0; left: 50%; margin-left: -2px; border-radius: 2px; }\n        .container { padding: 10px 40px; position: relative; background-color: inherit; width: 50%; box-sizing: border-box; }\n        .left { left: 0; }\n        .right { left: 50%; }\n        .container::after { content: ''; position: absolute; width: 16px; height: 16px; right: -10px; background-color: white; border: 4px solid #3b82f6; top: 15px; border-radius: 50%; z-index: 1; }\n        .right::after { left: -10px; }\n        .content { padding: 20px; background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; position: relative; }\n        .date { color: #3b82f6; font-weight: bold; font-size: 14px; margin-bottom: 8px; }\n        .title { font-size: 18px; font-weight: bold; color: #0f172a; margin-bottom: 8px; margin-top: 0; }\n        .desc { color: #475569; font-size: 14px; line-height: 1.5; margin: 0; }\n        .img-container { width: 100%; height: 160px; border-radius: 8px; overflow: hidden; margin-top: 12px; display: none; background: #f1f5f9; }\n        .img-container img { width: 100%; height: 100%; object-fit: cover; }\n        @media screen and (max-width: 600px) {\n            .timeline::after { left: 31px; }\n            .container { width: 100%; padding-left: 70px; padding-right: 25px; }\n            .container::after { left: 21px; }\n            .right { left: 0%; }\n        }\n    </style>\n</head>\n<body>\n    <div class="timeline" id="timeline">\n        <!-- SUBSTITUA ESTE CONTEÚDO PELOS SEUS EVENTOS (ALTERNE ENTRE class="container left" E class="container right") -->\n        <div class="container left">\n            <!-- \`data-wiki\` SERVE PARA O ARTIFACT BUSCAR A FOTO NA WIKIPEDIA AUTOMATICAMENTE. COLOQUE O NOME MAIS FAMOSO POSSÍVEL DAQUELE ITEM. -->\n            <div class="content" data-wiki="Steve Jobs">\n                <div class="date">1976</div>\n                <h2 class="title">Fundação da Apple</h2>\n                <p class="desc">Steve Jobs e Steve Wozniak fundam a Apple Computer Inc.</p>\n            </div>\n        </div>\n    </div>\n    <script>\n        const observer = new ResizeObserver(() => {\n            window.parent.postMessage({ type: 'resize_timeline', id: '__UUID__', height: document.documentElement.scrollHeight }, '*');\n        });\n        observer.observe(document.body);\n        document.querySelectorAll('.content').forEach(async (el) => {\n            const wikiQuery = el.getAttribute('data-wiki');\n            if(wikiQuery) {\n                try {\n                    const searchRes = await fetch(\`https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=\${encodeURIComponent(wikiQuery)}&utf8=&format=json&origin=*\`);\n                    const searchData = await searchRes.json();\n                    if(searchData.query.search.length > 0) {\n                        const pageTitle = searchData.query.search[0].title;\n                        const summaryRes = await fetch(\`https://pt.wikipedia.org/api/rest_v1/page/summary/\${encodeURIComponent(pageTitle.replace(/ /g, "_"))}\`);\n                        const summaryData = await summaryRes.json();\n                        if(summaryData.thumbnail) {\n                            const imgDiv = document.createElement('div');\n                            imgDiv.className = 'img-container';\n                            imgDiv.style.display = 'block';\n                            imgDiv.innerHTML = \`<img src="\${summaryData.thumbnail.source}" alt="\${wikiQuery}">\`;\n                            el.appendChild(imgDiv);\n                        }\n                    }\n                } catch (e) { console.error("Erro wiki:", e); }\n            }\n        });\n    </script>\n</body>\n</html>`;
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UMA LINHA DO TEMPO (TIMELINE). É OBRIGATÓRIO incluir a timeline em sua resposta usando um bloco de código markdown com a linguagem "html_timeline". Você DEVE usar o template HTML base abaixo e preencher o corpo com as <div class="container...">. Lembre-se de definir um bom atributo \`data-wiki="..."\` no elemento \`.content\` para que fotos reais da web sejam carregadas no card.\n\nTemplate a ser usado dentro do bloco \`\`\`html_timeline\n${timelineTemplate}\n\`\`\``;
+          finalMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UMA LINHA DO TEMPO (TIMELINE). É OBRIGATÓRIO incluir a timeline em sua resposta usando um bloco de código markdown com a linguagem "html_timeline". Você DEVE usar o template HTML base abaixo e preencher o corpo com as <div class="container...">. Lembre-se de definir um bom atributo \`data-wiki="..."\` no elemento \`.content\` para que fotos reais da web sejam carregadas no card.\n\nTemplate a ser usado dentro do bloco \`\`\`html_timeline\n${timelineTemplate}\n\`\`\``;
         } else if (editorMatch && !climaMatch && !mapaMatch && !mermaidMatch && !timelineMatch) {
           isEditorVisual = true;
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA EXTREMA (EDITOR FRONT-END) - PENALIDADE MÁXIMA SE VIOLADA:
+          finalMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA EXTREMA (EDITOR FRONT-END) - PENALIDADE MÁXIMA SE VIOLADA:
 O usuário quer um código de UI/Interface completo e funcional.
 VOCÊ NÃO PODE, JAMAIS, SOB NENHUMA HIPÓTESE:
 1. Criar múltiplos blocos markdown (ex: \`\`\`css, \`\`\`javascript).
@@ -446,11 +485,11 @@ REGRAS OBRIGATÓRIAS DE DESIGN:
 8. NÃO FAÇA HTML FEIO/BRUTO! Faça uma interface deslumbrante de arrancar suspiros.`;
         } else if (mermaidMatch && !climaMatch && !mapaMatch && !timelineMatch && !editorMatch) {
           const mermaidTemplate = `<!DOCTYPE html>\n<html>\n<head>\n    <script type="module">\n        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';\n        mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#f1f5f9', primaryTextColor: '#0f172a', primaryBorderColor: '#cbd5e1', lineColor: '#334155', secondaryColor: '#e2e8f0', tertiaryColor: '#fff', fontSize: '14px', fontFamily: 'Inter, sans-serif' } });\n        const observer = new ResizeObserver(entries => {\n            for (let entry of entries) {\n                window.parent.postMessage({ type: 'resize_mermaid', id: '__UUID__', height: document.documentElement.scrollHeight }, '*');\n            }\n        });\n        window.addEventListener('load', () => setTimeout(() => observer.observe(document.documentElement), 100));\n    </script>\n    <style>body { margin:0; padding:24px; font-family:'Inter',sans-serif; background:#fff; display:flex; justify-content:center; } .mermaid { width:100%; max-width:800px; overflow:visible; display:block; text-align:center; }</style>\n</head>\n<body>\n    <div class="mermaid">\n        %% substitua com seu código mermaid abaixo\n        graph TD\n        A[Base] --> B[Processo]\n    </div>\n</body>\n</html>`;
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM DIAGRAMA MERMAID (fluxograma/sequência). É OBRIGATÓRIO incluir o diagrama em qualquer lugar da sua resposta (de preferência após a introdução) usando um bloco de código markdown com a linguagem "html_mermaid". Você DEVE usar o template HTML base abaixo, mas substituindo o código na div class="mermaid" pela sua própria sintaxe Mermaid.js estruturando o assunto pedido.\n\nTemplate a ser usado dentro do bloco \`\`\`html_mermaid\n${mermaidTemplate}\n\`\`\``;
+          finalMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM DIAGRAMA MERMAID (fluxograma/sequência). É OBRIGATÓRIO incluir o diagrama em qualquer lugar da sua resposta (de preferência após a introdução) usando um bloco de código markdown com a linguagem "html_mermaid". Você DEVE usar o template HTML base abaixo, mas substituindo o código na div class="mermaid" pela sua própria sintaxe Mermaid.js estruturando o assunto pedido.\n\nTemplate a ser usado dentro do bloco \`\`\`html_mermaid\n${mermaidTemplate}\n\`\`\``;
         } else if (answer.includes("GERAL") && !climaMatch && !mapaMatch && !mermaidMatch && !timelineMatch && !editorMatch) {
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM ARTIFACT (GERAL). O objetivo deste artefato explícito é EDUCAÇÃO, RESUMO DIDÁTICO ou COMPREENSÃO VISUAL. Entregue um mapa mental, infográfico ou resumo esquemático estruturado usando as DICAS DA WEB (se existirem na busca) para que os dados ensinados sejam super atualizados. É OBRIGATÓRIO incluir a tag <artifact> no final da sua resposta com o prompt para o gerador visual.`;
+          finalMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ DEVE GERAR UM ARTIFACT (GERAL). O objetivo deste artefato explícito é EDUCAÇÃO, RESUMO DIDÁTICO ou COMPREENSÃO VISUAL. Entregue um mapa mental, infográfico ou resumo esquemático estruturado usando as DICAS DA WEB (se existirem na busca) para que os dados ensinados sejam super atualizados. É OBRIGATÓRIO incluir a tag <artifact> no final da sua resposta com o prompt para o gerador visual.`;
         } else {
-          currentMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ NÃO DEVE GERAR UM ARTIFACT para esta resposta. É PROIBIDO usar a tag <artifact> ou blocos de código html_chart nesta resposta. Apenas responda em texto.`;
+          finalMessages[0].content += `\n\n### INSTRUÇÃO CRÍTICA DO CLASSIFICADOR:\nO classificador determinou que VOCÊ NÃO DEVE GERAR UM ARTIFACT para esta resposta. É PROIBIDO usar a tag <artifact> ou blocos de código html_chart nesta resposta. Apenas responda em texto.`;
         }
       } catch (err) {
         console.error("Classifier error or timeout:", err);
@@ -504,7 +543,7 @@ REGRAS OBRIGATÓRIAS DE DESIGN:
 
           const searchContext = `\n\n### RESULTADOS DA BUSCA NA WEB (Contexto Atualizado - Data Atual: ${new Date().toLocaleDateString('pt-BR')}):\n${sources.slice(0, 5).map((s: any, index: number) => `Fonte: ${s.title}\nURL: ${s.url}\nConteúdo: ${s.content}`).join("\n\n")}\n\nResposta Resumida da Busca: ${searchAnswer}\n\nUse as informações acima para responder à pergunta do usuário de forma natural. Não adicione seções de "Fontes" ou "Referências" no final, apenas incorpore a informação na sua resposta.`;
           
-          currentMessages[currentMessages.length - 1].content += searchContext;
+          finalMessages[finalMessages.length - 1].content += searchContext;
         } else {
           res.write(`data: ${JSON.stringify({ type: 'search_complete', query: userText, sources: [] })}\n\n`);
         }
@@ -515,23 +554,87 @@ REGRAS OBRIGATÓRIAS DE DESIGN:
     }
 
     if (isEditorVisual) {
-      currentMessages.push({
+      finalMessages.push({
         role: "system",
         content: "LEMBRETE OBRIGATÓRIO E FINAL (CRÍTICO ANTES DE GERAR SEU OUTPUT): ENTREGUE ABSOLUTAMENTE TUDOOO O CÓDIGO INTEIRO (HTML E CSS E JS) JUNTO, EMBUTIDO NUM ARQUIVO ÚNICO DO TIPO DENTRO DE ```html_editor. É SEVERAMENTE PROIBIDO sob qualquer circunstância escrever e gerar blocos soltos/separados apenas para css ou javascript. Use: <style> seu css... </style> no head!"
       });
     }
 
-    // No tool calls, just stream the response
+    if (containsImages) {
+      const sambaApiKey = process.env.SAMBANOVA_API_KEY;
+      if (!sambaApiKey) throw new Error("SAMBANOVA_API_KEY is não configurada.");
+
+      const response = await fetch("https://api.sambanova.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${sambaApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: finalMessages,
+          model: selectedModel,
+          stream: true,
+          max_tokens: 2048,
+          temperature: 0.2
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`SambaNova API Error: ${response.status} ${errText}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error("Falha ao abrir stream da SambaNova.");
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunkStr = decoder.decode(value);
+        const lines = chunkStr.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') break;
+          try {
+            const json = JSON.parse(data);
+            const content = json.choices[0]?.delta?.content || "";
+            const reasoning = json.choices[0]?.delta?.reasoning_content || json.choices[0]?.delta?.reasoning || "";
+            
+            if (reasoning) {
+              res.write(`data: ${JSON.stringify({ type: 'thought', content: reasoning })}\n\n`);
+            }
+            if (content) {
+              res.write(`data: ${JSON.stringify({ type: 'chunk', content })}\n\n`);
+            }
+          } catch (e) {
+            // Ignorar chunks mal formatados
+          }
+        }
+      }
+      res.write(`data: [DONE]\n\n`);
+      res.end();
+      return;
+    }
+
+    // No tool calls, just stream the response (Groq/OpenRouter)
     const stream = await clientToUse.chat.completions.create({
-      messages: currentMessages,
+      messages: finalMessages,
       model: selectedModel,
       stream: true,
-      max_tokens: 3000,
+      max_tokens: 2048,
       temperature: 0.2
     });
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || "";
+      const reasoning = (chunk.choices[0]?.delta as any)?.reasoning_content || (chunk.choices[0]?.delta as any)?.reasoning || "";
+
+      if (reasoning) {
+        res.write(`data: ${JSON.stringify({ type: 'thought', content: reasoning })}\n\n`);
+      }
       if (content) {
         res.write(`data: ${JSON.stringify({ type: 'chunk', content })}\n\n`);
       }
@@ -620,28 +723,26 @@ REGRAS TÉCNICAS:
 
     try {
       console.log("Gerando artifact: Tentando gemini-1.5-flash...");
-      const response = await ai.getGenerativeModel({
+      const response = await ai.models.generateContent({
         model: 'gemini-1.5-flash',
-      }).generateContent({
         contents: [{ role: 'user', parts: [{ text: systemPrompt + "\n\nSolicitação: " + prompt }] }],
-        generationConfig: {
+        config: {
           temperature: 0.5,
         }
       });
-      htmlContent = response.response.text();
+      htmlContent = response.text;
     } catch (e1: any) {
       console.warn("gemini-1.5-flash falhou:", e1.message);
       try {
         console.log("Gerando artifact: Tentando gemini-1.5-flash-8b...");
-        const response = await ai.getGenerativeModel({
+        const response = await ai.models.generateContent({
           model: 'gemini-1.5-flash-8b',
-        }).generateContent({
           contents: [{ role: 'user', parts: [{ text: systemPrompt + "\n\nSolicitação: " + prompt }] }],
-          generationConfig: {
+          config: {
             temperature: 0.5,
           }
         });
-        htmlContent = response.response.text();
+        htmlContent = response.text;
       } catch (e2: any) {
         console.warn("gemini-2.5-flash-lite falhou:", e2.message);
         try {

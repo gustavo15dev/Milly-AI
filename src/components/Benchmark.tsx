@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Trophy, Zap, MapPin, Star, Coffee, BookOpen, Search, Image as ImageIcon, Clock, ShieldCheck, AlertTriangle, Sparkles } from 'lucide-react';
+import logo from './logo.png';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface BenchmarkProps {
@@ -28,7 +29,7 @@ export default function Benchmark({ onBack }: BenchmarkProps) {
         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-8 items-center">
           <div className="flex-1 space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-blue-600" />
+              <img src={logo} className="w-6 h-6" alt="" />
               Análise Geral: Milly AI 1.1 Gold
             </h2>
             <p className="text-slate-600 text-lg leading-relaxed">
