@@ -299,13 +299,92 @@ const TimelineIframe = ({ srcDoc }: { srcDoc: string }) => {
   );
 };
 
+import { WeatherCard } from './components/WeatherCard';
+import { MapCard } from './components/MapCard';
+import { AudioPlayerCard } from './components/AudioPlayerCard';
+import { LiveEditorCard } from './components/LiveEditorCard';
+
+const PixabayGallery = ({ urls }: { urls: string[] }) => {
+  if (!urls || urls.length === 0) return null;
+
+  const validUrls = urls.map(u => u.trim()).filter(Boolean);
+  const count = validUrls.length;
+
+  return (
+    <div className="my-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-700">
+      <div className={`grid gap-2 ${count === 1 ? 'grid-cols-1' : 'grid-cols-2'} ${count === 3 ? 'grid-rows-2 h-[450px]' : 'h-[300px]'}`}>
+        {count === 1 && (
+          <div className="w-full h-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 group relative">
+            <img 
+              src={validUrls[0]} 
+              alt="Pixabay" 
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+            <div className="absolute bottom-3 left-3 bg-white/80 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1.5 shadow-sm border border-white/20 z-10">
+              <img src="https://pixabay.com/apple-touch-icon.png" className="w-4 h-4 rounded-sm" alt="" />
+              <span className="text-[10px] font-bold text-slate-700 uppercase tracking-tight">pixabay.com</span>
+            </div>
+          </div>
+        )}
+        
+        {count === 2 && validUrls.map((url, i) => (
+          <div key={i} className="w-full h-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 group relative">
+            <img 
+              src={url} 
+              alt="Pixabay" 
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+            <div className="absolute bottom-3 left-3 bg-white/80 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1.5 shadow-sm border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              <img src="https://pixabay.com/apple-touch-icon.png" className="w-4 h-4 rounded-sm" alt="" />
+              <span className="text-[10px] font-bold text-slate-700 uppercase">pixabay.com</span>
+            </div>
+          </div>
+        ))}
+
+        {count === 3 && (
+          <>
+            <div className="row-span-2 rounded-2xl overflow-hidden shadow-sm border border-slate-200 group relative">
+              <img 
+                src={validUrls[0]} 
+                alt="Pixabay" 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-2 shadow-sm border border-white/20 z-10">
+                <img src="https://pixabay.com/apple-touch-icon.png" className="w-4 h-4 rounded-sm" alt="" />
+                <span className="text-[10px] font-bold text-slate-700 uppercase tracking-tight">pixabay.com</span>
+              </div>
+            </div>
+            <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 group relative">
+              <img 
+                src={validUrls[1]} 
+                alt="Pixabay" 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            </div>
+            <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 group relative">
+              <img 
+                src={validUrls[2]} 
+                alt="Pixabay" 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 z-10">
+                <Plus className="w-3 h-3" />
+                VER MAIS
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const StreamingContext = createContext<boolean | undefined>(false);
 
 const MemoizedMarkdownComponents = {
   h1: ({node, ...props}: any) => <h1 className="text-2xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
   h2: ({node, ...props}: any) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900" {...props} />,
   h3: ({node, ...props}: any) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900" {...props} />,
-  p: ({node, ...props}: any) => <p className="mb-4 last:mb-0 whitespace-pre-wrap leading-relaxed break-words" {...props} />,
   ul: ({node, ...props}: any) => <ul className="list-disc pl-4 mb-4" {...props} />,
   ol: ({node, ...props}: any) => <ol className="list-decimal pl-4 mb-4" {...props} />,
   li: ({node, ...props}: any) => <li className="mb-1" {...props} />,
@@ -384,6 +463,22 @@ const MemoizedMarkdownComponents = {
   strong: ({node, ...props}: any) => <strong className="font-bold text-slate-900" {...props} />,
   em: ({node, ...props}: any) => <em className="italic" {...props} />,
   mark: ({node, ...props}: any) => <mark className="bg-yellow-200 text-slate-900 px-1.5 py-0.5 rounded-md font-medium" {...props} />,
+  p: ({node, ...props}: any) => <p className="mb-4 last:mb-0 whitespace-pre-wrap leading-relaxed break-words" {...props} />,
+  div: ({node, className, children, ...props}: any) => {
+    if (className === 'pixabay-gallery') {
+      const urlsString = props['data-urls'] || "";
+      // Match URLs even if they have newlines or spaces around them
+      const urls = urlsString.split(/[,\n\s]+/).map((u: string) => u.trim()).filter((u: string) => u.startsWith('http'));
+      return <PixabayGallery urls={urls} />;
+    }
+    return <div className={className} {...props}>{children}</div>;
+  },
+  'pixabay-gallery': (props: any) => {
+    // Mantendo como fallback caso rehype trate como tag customizada
+    const urlsString = props['data-urls'] || "";
+    const urls = urlsString.split(/[,\n\s]+/).map((u: string) => u.trim()).filter((u: string) => u.startsWith('http'));
+    return <PixabayGallery urls={urls} />;
+  },
   table: ({node, ...props}: any) => (
     <div className="overflow-x-auto mb-4 rounded-lg border border-slate-200">
       <table className="min-w-full divide-y divide-slate-200" {...props} />
@@ -437,6 +532,25 @@ const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayedContent]);
 
+  const processedContent = React.useMemo(() => {
+    // 1. First, check if there's an incomplete PIXABAY_GALLERY tag at the very end
+    let rawContent = displayedContent;
+    const lastOpenBracket = rawContent.lastIndexOf('[');
+    if (lastOpenBracket !== -1 && lastOpenBracket > rawContent.lastIndexOf(']')) {
+      const potentialTag = rawContent.slice(lastOpenBracket);
+      if (potentialTag.startsWith('[P') || potentialTag.startsWith('[PIXABAY_GALLERY:')) {
+        // Hide the partial tag while streaming
+        rawContent = rawContent.slice(0, lastOpenBracket);
+      }
+    }
+
+    // 2. Process complete tags
+    return rawContent.replace(/\[PIXABAY_GALLERY:\s*([\s\S]*?)\]/g, (match, urls) => {
+      const escapedUrls = urls.replace(/"/g, '&quot;');
+      return `<div class="pixabay-gallery" data-urls="${escapedUrls}"></div>`;
+    });
+  }, [displayedContent]);
+
   return (
     <StreamingContext.Provider value={isStreaming}>
       <ReactMarkdown 
@@ -444,16 +558,11 @@ const TypewriterMarkdown = ({ content, isStreaming, onContentChange, sources }: 
         rehypePlugins={[rehypeRaw]}
         components={MemoizedMarkdownComponents}
       >
-        {displayedContent}
+        {processedContent}
       </ReactMarkdown>
     </StreamingContext.Provider>
   );
 };
-
-import { WeatherCard } from './components/WeatherCard';
-import { MapCard } from './components/MapCard';
-import { AudioPlayerCard } from './components/AudioPlayerCard';
-import { LiveEditorCard } from './components/LiveEditorCard';
 
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

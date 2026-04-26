@@ -276,6 +276,7 @@ Vocabulário permitido:
 - "CLIMA: [Nome da Cidade]": se o usuário estiver perguntando sobre o clima ou previsão do tempo de uma cidade específica.
 - "MAPA: [Local corrigido para busca]": se o usuário pedir para ver um local no mapa, ver onde fica algo, localizar museus, restaurantes, cidades, ou passeios. VOCÊ DEVE corrigir e melhorar o termo para que a busca em serviços de mapas funcione bem (ex: "mapa da paulista" -> MAPA: Avenida Paulista, São Paulo).
 - "MUSICA: [Termo exato de busca limpo]": se o usuário estiver perguntando sobre uma música específica, quem canta, ou pedir para ouvir/tocar uma música e seu preview. VOCÊ DEVE extrair APENAS o nome da música e, se mencionado, o artista. NÃO inclua palavras como "música", "ouvir", "toque". Ex: "toque a música ilusão de ótica" -> MUSICA: Ilusão de Ótica. Isso garante que a API da Deezer retorne resultados exatos.
+- "PIXABAY: [Termo de busca limpo]": se o usuário pedir para ver fotos, imagens reais, ou pesquisar imagens de algo específico. Extraia apenas o termo principal. NÃO use para gerar imagens (arte), use apenas para buscar fotos reais.
 - "TIMELINE": se o usuário pedir a história de algo, biografia de uma pessoa, evolução de uma empresa ou uma linha do tempo de eventos chronológicos.
 - "EDITOR": se o usuário pedir um trecho de HTML, CSS, Javascript de UI, uma interface, ou falar para criar um design front-end no código com live editor.
 - "MERMAID": se o usuário pedir para visualizar um processo, fluxograma, árvore de decisão, jornada do usuário, diagrama de sequência ou mapa mental em formato de gráfico. Use para fluxo passo-a-passo.
@@ -340,6 +341,26 @@ IMPORTANTE: Responda APENAS usando o vocabulário permitido. Nada mais.`
         if (musicaMatch) {
           const query = musicaMatch[1].trim();
           res.write(`data: ${JSON.stringify({ type: 'music_start', query })}\n\n`);
+        }
+
+        const pixabayMatch = answer.match(/PIXABAY:\s*([^,\n]+)/i);
+        let pixabayImages: any[] = [];
+        if (pixabayMatch) {
+          const query = pixabayMatch[1].trim();
+          const pixabayKey = process.env.PIXABAY_API_KEY || "54520067-902d9c3b91487a2274afc59b9";
+          try {
+            const pixRes = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=12&lang=pt&safesearch=true&order=popular`);
+            if (pixRes.ok) {
+              const data = await pixRes.json();
+              pixabayImages = data.hits || [];
+              if (pixabayImages.length > 0) {
+                const urls = pixabayImages.slice(0, 5).map((img: any) => img.webformatURL);
+                finalMessages[0].content += `\n\n### IMAGENS REAIS ENCONTRADAS (PIXABAY):\nVocê encontrou algumas fotos reais do Pixabay para o termo "${query}".\nSE VOCÊ ACHAR RELEVANTE mostrar essas imagens para o usuário, use a tag OBRIGATÓRIA: [PIXABAY_GALLERY: url1, url2, url3].\nREGRAS DA GALERIA:\n1. Use no MÁXIMO 3 URLs por galeria.\n2. Você pode colocar essa tag no meio ou final do seu texto.\n3. Se só quiser mostrar uma foto, use [PIXABAY_GALLERY: url1].\n4. NÃO mostre a URL em texto limpo fora da tag. Se usar a tag, NÃO repita as URLs em texto.\n5. O formato da tag DEVE ser EXATAMENTE: [PIXABAY_GALLERY: URL1, URL2, URL3].\n\nLISTA DE URLs DISPONÍVEIS:\n${urls.join("\n")}`;
+              }
+            }
+          } catch (e) {
+            console.error("Pixabay search error:", e);
+          }
         }
         
         const mermaidMatch = answer.match(/MERMAID/i);
